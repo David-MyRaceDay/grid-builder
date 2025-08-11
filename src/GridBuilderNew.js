@@ -166,22 +166,6 @@ const GridBuilder = () => {
         
         return results;
     };
-    
-    const parseTimeToSeconds = (timeStr) => {
-        if (!timeStr || typeof timeStr !== 'string') return Infinity;
-        
-        // Handle formats like "2:00.295" or "1:23.456"
-        const parts = timeStr.split(':');
-        if (parts.length === 2) {
-            const minutes = parseInt(parts[0]) || 0;
-            const secondsParts = parts[1].split('.');
-            const seconds = parseInt(secondsParts[0]) || 0;
-            const milliseconds = parseInt(secondsParts[1]) || 0;
-            return minutes * 60 + seconds + milliseconds / 1000;
-        }
-        
-        return Infinity;
-    };
 
     const parseCSV = (file) => {
         return new Promise((resolve, reject) => {
@@ -189,17 +173,7 @@ const GridBuilder = () => {
             reader.onload = (e) => {
                 const content = e.target.result;
                 
-                // First, try to parse as laptimes format
-                const laptimesData = parseLaptimesCSV(content, file.name);
-                if (laptimesData && laptimesData.length > 0) {
-                    resolve({
-                        fileName: file.name,
-                        data: laptimesData
-                    });
-                    return;
-                }
-                
-                // If not laptimes format, parse as regular CSV
+                // Parse as regular CSV (removed laptimes format check for now)
                 Papa.parse(content, {
                     header: true,
                     dynamicTyping: true,
@@ -238,10 +212,37 @@ const GridBuilder = () => {
         });
     };
     
+    // Helper function to parse time string to seconds
+    const parseTimeToSeconds = (timeStr) => {
+        if (!timeStr || timeStr === '--:--' || timeStr === '') {
+            return Infinity; // Return Infinity for invalid times so they sort last
+        }
+        
+        // Handle different time formats: "MM:SS.mmm", "SS.mmm", "M:SS.mmm"
+        const parts = timeStr.toString().split(':');
+        if (parts.length === 2) {
+            // MM:SS.mmm or M:SS.mmm format
+            const minutes = parseInt(parts[0]) || 0;
+            const seconds = parseFloat(parts[1]) || 0;
+            return minutes * 60 + seconds;
+        } else if (parts.length === 1) {
+            // SS.mmm format
+            return parseFloat(parts[0]) || Infinity;
+        }
+        
+        return Infinity; // Default for unparseable times
+    };
+    
     const consolidateDriverData = (allParsedFiles) => {
         const driverMap = new Map();
         
         allParsedFiles.forEach((parsedFile, fileIndex) => {
+            // Add safety check for parsedFile and parsedFile.data
+            if (!parsedFile || !parsedFile.data) {
+                console.error('Invalid parsed file structure:', parsedFile);
+                return;
+            }
+            
             parsedFile.data.forEach(entry => {
                 // Get driver identifier (prefer number, fallback to name)
                 const driverKey = entry['No.'] || entry.Number || entry['Car'] || entry.Name || entry.Driver || `unknown_${fileIndex}_${Math.random()}`;
@@ -369,7 +370,11 @@ const GridBuilder = () => {
         
         try {
             const newParsed = await Promise.all(csvFiles.map(parseCSV));
-            const allParsedFiles = [...parsedData.map(d => d.originalFile || d), ...newParsed];
+            // Extract original files from previously parsed data
+            const previousFiles = parsedData.length > 0 && parsedData[0].originalFiles 
+                ? parsedData[0].originalFiles 
+                : [];
+            const allParsedFiles = [...previousFiles, ...newParsed];
             
             // Analyze each new file for missing columns
             const newWarnings = new Map(fileWarnings);
@@ -454,6 +459,20 @@ const GridBuilder = () => {
         });
         
         return Array.from(classSet).filter(c => c && c.trim() !== '');
+    };
+    
+    const getCarCountsByClass = () => {
+        const classCounts = new Map();
+        
+        // Count cars per class from parsed data
+        parsedData.forEach(driver => {
+            if (driver.class && driver.class.trim() !== '') {
+                const className = driver.class;
+                classCounts.set(className, (classCounts.get(className) || 0) + 1);
+            }
+        });
+        
+        return classCounts;
     };
     
     const hasSecondBestTimes = () => {
@@ -1358,11 +1377,14 @@ const GridBuilder = () => {
                 return (
                     <div className="space-y-6">
                         <Accordion type="single" collapsible>
-                            <AccordionItem value="tips" className="border-track-blue bg-blue-50">
+                            <AccordionItem 
+                                value="tips" 
+                                className="border-track-blue bg-blue-50 cursor-pointer"
+                                onClick={() => setShowTips(!showTips)}
+                            >
                                 <AccordionTrigger 
-                                    onClick={() => setShowTips(!showTips)}
                                     isOpen={showTips}
-                                    className="text-track-blue hover:bg-blue-100"
+                                    className="text-track-blue hover:bg-blue-100 cursor-pointer"
                                 >
                                     <h4 className="flex items-center gap-2 text-base font-semibold">
                                         <Info className="h-5 w-5" />
@@ -1557,6 +1579,7 @@ const GridBuilder = () => {
                 
             case 3:
                 const availableClasses = extractClasses().sort();
+                const carCounts = getCarCountsByClass();
                 
                 return (
                     <div className="space-y-6">
@@ -1648,10 +1671,20 @@ const GridBuilder = () => {
                                                             />
                                                             <Label 
                                                                 htmlFor={`class-${idx}-${cls}`}
-                                                                className="cursor-pointer"
+                                                                className="cursor-pointer flex items-center gap-2"
                                                                 title={isAssignedElsewhere ? `Already assigned to another wave` : ''}
                                                             >
-                                                                {cls}
+                                                                <span>{cls}</span>
+                                                                <Badge 
+                                                                    variant="secondary"
+                                                                    className="bg-track-blue text-white text-xs px-2 py-0.5"
+                                                                    style={{
+                                                                        backgroundColor: '#4B7BFF',
+                                                                        color: 'white'
+                                                                    }}
+                                                                >
+                                                                    {carCounts.get(cls) || 0}
+                                                                </Badge>
                                                             </Label>
                                                         </div>
                                                     );
