@@ -1,0 +1,1659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid Builder</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.5/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+        
+        .progress-bar {
+            display: flex;
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .progress-step {
+            flex: 1;
+            text-align: center;
+            position: relative;
+            padding: 10px;
+        }
+        
+        .progress-step::before {
+            content: attr(data-step);
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            line-height: 40px;
+            background: #e0e0e0;
+            color: #666;
+            border-radius: 50%;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        .progress-step.active::before {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            transform: scale(1.1);
+        }
+        
+        .progress-step.completed::before {
+            background: #4caf50;
+            color: white;
+        }
+        
+        .progress-step span {
+            display: block;
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .content {
+            padding: 40px;
+            min-height: 400px;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 60px;
+            text-align: center;
+            background: #f8f6ff;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .upload-area:hover {
+            background: #ede9ff;
+            transform: translateY(-2px);
+        }
+        
+        .upload-area.dragging {
+            background: #ddd6ff;
+            border-color: #764ba2;
+        }
+        
+        .upload-icon {
+            font-size: 4rem;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .wave-config {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .wave-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .wave-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #555;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .checkbox-group {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        
+        .checkbox-label input {
+            margin-right: 8px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .grid-preview {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .grid-wave {
+            margin-bottom: 30px;
+        }
+        
+        .grid-wave-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        
+        .grid-entry {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            transition: background 0.2s ease;
+        }
+        
+        .grid-entry:hover {
+            background: #f8f9fa;
+        }
+        
+        .grid-position {
+            width: 50px;
+            font-weight: bold;
+            color: #667eea;
+            font-size: 1.1rem;
+        }
+        
+        .grid-car {
+            flex: 1;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .grid-car-number {
+            background: #333;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            min-width: 50px;
+            text-align: center;
+        }
+        
+        .grid-driver {
+            flex: 1;
+            font-weight: 500;
+        }
+        
+        .grid-class {
+            background: #f0f0f0;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        
+        .grid-time {
+            color: #666;
+            font-family: monospace;
+            font-size: 0.95rem;
+        }
+        
+        .drag-handle {
+            cursor: move;
+            color: #999;
+            margin-right: 15px;
+            font-size: 1.2rem;
+        }
+        
+        .dragging {
+            opacity: 0.5;
+        }
+        
+        .drag-over {
+            background: #e8e3ff;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+        
+        .file-list {
+            margin-top: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+        }
+        
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        
+        .file-name {
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .remove-file {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        
+        .remove-file:hover {
+            background: #c82333;
+        }
+        
+        .radio-group {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .radio-label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        
+        .radio-label input {
+            margin-right: 8px;
+            cursor: pointer;
+        }
+        
+        .number-input {
+            width: 100px;
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .progress-bar {
+                overflow-x: auto;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            .upload-area {
+                padding: 40px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        
+        const App = () => {
+            const [currentStep, setCurrentStep] = useState(1);
+            const [uploadedFiles, setUploadedFiles] = useState([]);
+            const [parsedData, setParsedData] = useState([]);
+            const [waveCount, setWaveCount] = useState(1);
+            const [waveConfigs, setWaveConfigs] = useState([]);
+            const [finalGrid, setFinalGrid] = useState([]);
+            const [originalGrid, setOriginalGrid] = useState([]);
+            const [gridName, setGridName] = useState('');
+            const fileInputRef = useRef(null);
+            const [draggedItem, setDraggedItem] = useState(null);
+            const [draggedOver, setDraggedOver] = useState(null);
+            
+            const steps = [
+                { num: 1, label: 'Upload Files' },
+                { num: 2, label: 'Configure Waves' },
+                { num: 3, label: 'Assign Classes' },
+                { num: 4, label: 'Review Grid' },
+                { num: 5, label: 'Export PDF' }
+            ];
+            
+            const parseCSV = (file) => {
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        Papa.parse(e.target.result, {
+                            header: true,
+                            dynamicTyping: true,
+                            skipEmptyLines: true,
+                            complete: (results) => {
+                                resolve({
+                                    fileName: file.name,
+                                    data: results.data
+                                });
+                            }
+                        });
+                    };
+                    reader.readAsText(file);
+                });
+            };
+            
+            const handleFileUpload = async (files) => {
+                const fileArray = Array.from(files);
+                const csvFiles = fileArray.filter(f => f.name.endsWith('.csv'));
+                
+                const parsed = await Promise.all(csvFiles.map(parseCSV));
+                setParsedData(prev => [...prev, ...parsed]);
+                setUploadedFiles(prev => [...prev, ...csvFiles]);
+            };
+            
+            const handleDrop = (e) => {
+                e.preventDefault();
+                e.currentTarget.classList.remove('dragging');
+                handleFileUpload(e.dataTransfer.files);
+            };
+            
+            const handleDragOver = (e) => {
+                e.preventDefault();
+                e.currentTarget.classList.add('dragging');
+            };
+            
+            const handleDragLeave = (e) => {
+                e.currentTarget.classList.remove('dragging');
+            };
+            
+            const removeFile = (index) => {
+                setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+                setParsedData(prev => prev.filter((_, i) => i !== index));
+            };
+            
+            const normalizeFieldName = (row, fieldVariations) => {
+                for (let variation of fieldVariations) {
+                    if (row[variation] !== undefined && row[variation] !== null && row[variation] !== '') {
+                        return row[variation];
+                    }
+                }
+                return null;
+            };
+            
+            const extractClasses = () => {
+                const classSet = new Set();
+                const classVariations = ['Class', 'class', 'CLASS', 'Класс'];
+                
+                parsedData.forEach(file => {
+                    file.data.forEach(row => {
+                        const classValue = normalizeFieldName(row, classVariations);
+                        if (classValue) {
+                            classSet.add(classValue);
+                        }
+                    });
+                });
+                return Array.from(classSet).filter(c => c && c.trim() !== '');
+            };
+            
+            const initializeWaveConfigs = () => {
+                const configs = [];
+                let canHaveFlying = true;
+                
+                for (let i = 0; i < waveCount; i++) {
+                    configs.push({
+                        waveNumber: i + 1,
+                        startType: canHaveFlying ? 'flying' : 'standing',
+                        classes: [],
+                        sortBy: 'position',
+                        gridOrder: 'straight',
+                        inverted: false,
+                        invertAll: false,
+                        invertCount: 2,
+                        emptyPositions: 0
+                    });
+                    
+                    if (configs[i].startType === 'standing') {
+                        canHaveFlying = false;
+                    }
+                }
+                setWaveConfigs(configs);
+            };
+            
+            const updateWaveConfig = (index, field, value) => {
+                setWaveConfigs(prev => {
+                    const updated = [...prev];
+                    updated[index] = { ...updated[index], [field]: value };
+                    
+                    if (field === 'startType' && value === 'standing') {
+                        for (let i = index + 1; i < updated.length; i++) {
+                            updated[i].startType = 'standing';
+                        }
+                    }
+                    
+                    return updated;
+                });
+            };
+            
+            const buildGrid = () => {
+                const grid = [];
+                
+                // Field name variations for different export formats
+                const classVariations = ['Class', 'class', 'CLASS'];
+                const numberVariations = ['No.', 'Number', 'CarNumber', 'Car', '#', 'Num'];
+                const driverVariations = ['Name', 'Driver', 'DriverName', 'Pilot'];
+                const positionVariations = ['Pos', 'Position', 'Finish', 'Place', 'P'];
+                const bestTimeVariations = ['Best Tm', 'BestTime', 'Best Time', 'FastLap', 'Best', 'Time'];
+                const secondTimeVariations = ['2nd Best', 'SecondBest', 'Second Best', 'Time2', '2nd'];
+                const pointsVariations = ['Points', 'Pts', 'Score'];
+                
+                // Parse time strings to seconds for sorting
+                const parseTime = (timeStr) => {
+                    if (!timeStr || timeStr === '' || timeStr === 'DNF' || timeStr === 'DNS') return 999999;
+                    
+                    // Handle various time formats (1:23.456, 1:23:456, 83.456, etc.)
+                    const cleanTime = timeStr.toString().trim();
+                    
+                    // If it's already a number (seconds)
+                    if (!isNaN(cleanTime)) return parseFloat(cleanTime);
+                    
+                    // Handle MM:SS.mmm or MM:SS:mmm format
+                    const parts = cleanTime.split(/[:.]/).filter(p => p);
+                    if (parts.length === 3) {
+                        // MM:SS.mmm or MM:SS:mmm
+                        const minutes = parseInt(parts[0]) || 0;
+                        const seconds = parseInt(parts[1]) || 0;
+                        const milliseconds = parseInt(parts[2].padEnd(3, '0').substring(0, 3)) || 0;
+                        return minutes * 60 + seconds + milliseconds / 1000;
+                    } else if (parts.length === 2) {
+                        // SS.mmm
+                        const seconds = parseInt(parts[0]) || 0;
+                        const milliseconds = parseInt(parts[1].padEnd(3, '0').substring(0, 3)) || 0;
+                        return seconds + milliseconds / 1000;
+                    }
+                    
+                    return 999999; // Default for unparseable times
+                };
+                
+                waveConfigs.forEach(config => {
+                    const waveDataMap = new Map(); // Use Map to deduplicate by driver
+                    
+                    parsedData.forEach(file => {
+                        file.data.forEach(row => {
+                            const rowClass = normalizeFieldName(row, classVariations);
+                            if (config.classes.includes(rowClass)) {
+                                // Normalize all the fields
+                                const normalizedRow = {
+                                    Class: rowClass,
+                                    Number: normalizeFieldName(row, numberVariations),
+                                    Driver: normalizeFieldName(row, driverVariations),
+                                    Position: normalizeFieldName(row, positionVariations),
+                                    BestTime: normalizeFieldName(row, bestTimeVariations),
+                                    SecondBest: normalizeFieldName(row, secondTimeVariations),
+                                    Points: normalizeFieldName(row, pointsVariations),
+                                    source: file.fileName,
+                                    originalRow: row // Keep original data for reference
+                                };
+                                
+                                // Use driver name as key for deduplication
+                                const driverKey = normalizedRow.Driver ? normalizedRow.Driver.trim().toLowerCase() : null;
+                                
+                                if (driverKey) {
+                                    const existing = waveDataMap.get(driverKey);
+                                    
+                                    if (!existing) {
+                                        // First occurrence of this driver
+                                        waveDataMap.set(driverKey, normalizedRow);
+                                    } else {
+                                        // Driver already exists - compare and keep the better result
+                                        const existingTime = parseTime(existing.BestTime);
+                                        const newTime = parseTime(normalizedRow.BestTime);
+                                        
+                                        // Keep the entry with the better (lower) time
+                                        if (newTime < existingTime) {
+                                            waveDataMap.set(driverKey, normalizedRow);
+                                        } else if (newTime === existingTime) {
+                                            // If times are equal, check other criteria
+                                            const existingPos = parseInt(existing.Position) || 999;
+                                            const newPos = parseInt(normalizedRow.Position) || 999;
+                                            
+                                            // Keep better position
+                                            if (newPos < existingPos) {
+                                                waveDataMap.set(driverKey, normalizedRow);
+                                            } else if (newPos === existingPos) {
+                                                // If positions are also equal, keep the one with more points
+                                                const existingPts = parseInt(existing.Points) || 0;
+                                                const newPts = parseInt(normalizedRow.Points) || 0;
+                                                
+                                                if (newPts > existingPts) {
+                                                    waveDataMap.set(driverKey, normalizedRow);
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else if (normalizedRow.Number) {
+                                    // If no driver name but has car number, use car number as key
+                                    const carKey = `car_${normalizedRow.Number}`;
+                                    if (!waveDataMap.has(carKey)) {
+                                        waveDataMap.set(carKey, normalizedRow);
+                                    }
+                                }
+                            }
+                        });
+                    });
+                    
+                    // Convert Map back to array
+                    const waveData = Array.from(waveDataMap.values());
+                    
+                    // Sort the wave data
+                    waveData.sort((a, b) => {
+                        switch (config.sortBy) {
+                            case 'position':
+                                const posA = parseInt(a.Position) || 999;
+                                const posB = parseInt(b.Position) || 999;
+                                return posA - posB;
+                            case 'bestTime':
+                                return parseTime(a.BestTime) - parseTime(b.BestTime);
+                            case 'secondBest':
+                                return parseTime(a.SecondBest) - parseTime(b.SecondBest);
+                            case 'points':
+                                const ptsA = parseInt(a.Points) || 0;
+                                const ptsB = parseInt(b.Points) || 0;
+                                return ptsB - ptsA; // Higher points first
+                            default:
+                                return 0;
+                        }
+                    });
+                    
+                    // Apply grid order
+                    if (config.gridOrder === 'fastestFirst' || config.gridOrder === 'slowestFirst') {
+                        // Group by class and find fastest time in each class
+                        const classTimes = {};
+                        config.classes.forEach(cls => {
+                            const classData = waveData.filter(d => d.Class === cls);
+                            if (classData.length > 0) {
+                                const times = classData.map(d => parseTime(d.BestTime)).filter(t => t < 999999);
+                                // Get the fastest (minimum) time in the class
+                                const fastestTime = times.length > 0 
+                                    ? Math.min(...times)
+                                    : 999999;
+                                classTimes[cls] = fastestTime;
+                            }
+                        });
+                        
+                        const sortedClasses = Object.keys(classTimes).sort((a, b) => {
+                            if (config.gridOrder === 'fastestFirst') {
+                                return classTimes[a] - classTimes[b];
+                            } else {
+                                return classTimes[b] - classTimes[a];
+                            }
+                        });
+                        
+                        const sortedWaveData = [];
+                        sortedClasses.forEach(cls => {
+                            sortedWaveData.push(...waveData.filter(d => d.Class === cls));
+                        });
+                        waveData.length = 0;
+                        waveData.push(...sortedWaveData);
+                    }
+                    
+                    // Apply inversion
+                    if (config.inverted) {
+                        if (config.invertAll) {
+                            // Invert the entire wave
+                            waveData.reverse();
+                        } else if (config.invertCount > 0) {
+                            // Invert specific number of positions
+                            const toInvert = waveData.slice(0, Math.min(config.invertCount, waveData.length));
+                            toInvert.reverse();
+                            waveData.splice(0, toInvert.length, ...toInvert);
+                        }
+                    }
+                    
+                    grid.push({
+                        config: config,
+                        entries: waveData,
+                        emptyPositions: config.emptyPositions || 0
+                    });
+                });
+                
+                setFinalGrid(grid);
+                setOriginalGrid(JSON.parse(JSON.stringify(grid))); // Deep copy
+            };
+            
+            const handleGridDragStart = (e, waveIndex, entryIndex) => {
+                setDraggedItem({ waveIndex, entryIndex });
+            };
+            
+            const handleGridDragOver = (e, waveIndex, entryIndex) => {
+                e.preventDefault();
+                setDraggedOver({ waveIndex, entryIndex });
+            };
+            
+            const handleGridDrop = (e, waveIndex, entryIndex) => {
+                e.preventDefault();
+                if (!draggedItem) return;
+                
+                setFinalGrid(prev => {
+                    const newGrid = [...prev];
+                    const draggedEntry = newGrid[draggedItem.waveIndex].entries[draggedItem.entryIndex];
+                    
+                    // Remove from original position
+                    newGrid[draggedItem.waveIndex].entries.splice(draggedItem.entryIndex, 1);
+                    
+                    // Add to new position
+                    newGrid[waveIndex].entries.splice(entryIndex, 0, draggedEntry);
+                    
+                    return newGrid;
+                });
+                
+                setDraggedItem(null);
+                setDraggedOver(null);
+            };
+            
+            const startNewGrid = () => {
+                // Reset all state variables
+                setCurrentStep(1);
+                setUploadedFiles([]);
+                setParsedData([]);
+                setWaveCount(1);
+                setWaveConfigs([]);
+                setFinalGrid([]);
+                setOriginalGrid([]);
+                setGridName('');
+                setDraggedItem(null);
+                setDraggedOver(null);
+            };
+            
+            const moveToEndOfWave = (waveIndex, entryIndex) => {
+                setFinalGrid(prev => {
+                    const newGrid = [...prev];
+                    const entry = newGrid[waveIndex].entries[entryIndex];
+                    
+                    // Remove from current position
+                    newGrid[waveIndex].entries.splice(entryIndex, 1);
+                    
+                    // Add to end of wave
+                    newGrid[waveIndex].entries.push(entry);
+                    
+                    return newGrid;
+                });
+            };
+            
+            const moveToEndOfClass = (waveIndex, entryIndex) => {
+                setFinalGrid(prev => {
+                    const newGrid = [...prev];
+                    const entry = newGrid[waveIndex].entries[entryIndex];
+                    const entryClass = entry.Class;
+                    
+                    // Remove from current position
+                    newGrid[waveIndex].entries.splice(entryIndex, 1);
+                    
+                    // Find the last position of the same class in the wave
+                    let insertIndex = newGrid[waveIndex].entries.length;
+                    for (let i = newGrid[waveIndex].entries.length - 1; i >= 0; i--) {
+                        if (newGrid[waveIndex].entries[i].Class === entryClass) {
+                            insertIndex = i + 1;
+                            break;
+                        }
+                    }
+                    
+                    // Insert at the end of the class group
+                    newGrid[waveIndex].entries.splice(insertIndex, 0, entry);
+                    
+                    return newGrid;
+                });
+            };
+            
+            const isWaveModified = (waveIndex) => {
+                if (!originalGrid[waveIndex] || !finalGrid[waveIndex]) return false;
+                
+                const original = originalGrid[waveIndex].entries;
+                const current = finalGrid[waveIndex].entries;
+                
+                if (original.length !== current.length) return true;
+                
+                for (let i = 0; i < original.length; i++) {
+                    if (original[i].Number !== current[i].Number || 
+                        original[i].Driver !== current[i].Driver) {
+                        return true;
+                    }
+                }
+                return false;
+            };
+            
+            const resetWave = (waveIndex) => {
+                if (originalGrid[waveIndex]) {
+                    setFinalGrid(prev => {
+                        const newGrid = [...prev];
+                        newGrid[waveIndex] = JSON.parse(JSON.stringify(originalGrid[waveIndex])); // Deep copy
+                        return newGrid;
+                    });
+                }
+            };
+            
+            const combineWithPreviousWave = (waveIndex) => {
+                if (waveIndex === 0) return; // Can't combine first wave
+                
+                setFinalGrid(prev => {
+                    const newGrid = [...prev];
+                    const previousWave = newGrid[waveIndex - 1];
+                    const currentWave = newGrid[waveIndex];
+                    
+                    // Add all entries from current wave to previous wave
+                    previousWave.entries.push(...currentWave.entries);
+                    
+                    // Remove the current wave
+                    newGrid.splice(waveIndex, 1);
+                    
+                    return newGrid;
+                });
+                
+                // Also update original grid to reflect the wave removal
+                setOriginalGrid(prev => {
+                    const newOriginal = [...prev];
+                    if (waveIndex > 0 && newOriginal[waveIndex - 1] && newOriginal[waveIndex]) {
+                        newOriginal[waveIndex - 1].entries.push(...newOriginal[waveIndex].entries);
+                    }
+                    newOriginal.splice(waveIndex, 1);
+                    return newOriginal;
+                });
+            };
+            
+            const generatePDF = () => {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                // Helper function to generate wave description (same as in UI)
+                const generateWaveDescription = (config) => {
+                    const descriptions = [];
+                    
+                    const sortLabels = {
+                        'position': 'Finishing Position',
+                        'bestTime': 'Best Time',
+                        'secondBest': 'Second Best Time',
+                        'points': 'Points'
+                    };
+                    descriptions.push(`Sorted by ${sortLabels[config.sortBy] || 'Unknown'}`);
+                    
+                    const orderLabels = {
+                        'straight': 'straight up',
+                        'fastestFirst': 'fastest class first',
+                        'slowestFirst': 'slowest class first'
+                    };
+                    descriptions.push(`${orderLabels[config.gridOrder] || 'unknown order'}`);
+                    
+                    if (config.inverted) {
+                        if (config.invertAll) {
+                            descriptions.push('entire grid inverted');
+                        } else {
+                            descriptions.push(`top ${config.invertCount} positions inverted`);
+                        }
+                    }
+                    
+                    if (config.classes && config.classes.length > 0) {
+                        descriptions.push(`Classes: ${config.classes.join(', ')}`);
+                    }
+                    
+                    return descriptions.join(' • ');
+                };
+                
+                doc.setFontSize(20);
+                const title = gridName.trim() || 'Starting Grid';
+                doc.text(title, 105, 20, { align: 'center' });
+                
+                let yPos = 35;
+                let currentPosition = 1;
+                
+                finalGrid.forEach((wave, waveIdx) => {
+                    // Check if we need a new page for the wave header
+                    if (yPos > 245) {
+                        doc.addPage();
+                        yPos = 20;
+                    }
+                    
+                    // Wave title
+                    doc.setFontSize(14);
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`Wave ${wave.config.waveNumber} - ${wave.config.startType.toUpperCase()} Start`, 20, yPos);
+                    yPos += 6;
+                    
+                    // Wave description
+                    doc.setFontSize(9);
+                    doc.setFont(undefined, 'italic');
+                    const description = generateWaveDescription(wave.config);
+                    doc.text(description, 20, yPos);
+                    yPos += 8;
+                    
+                    // Table headers
+                    doc.setFontSize(11);
+                    doc.setFont(undefined, 'bold');
+                    const colWidths = [25, 25, 80, 30]; // Grid Pos, Car No, Driver, Time
+                    const colPositions = [20, 45, 70, 150];
+                    
+                    doc.text('Grid Pos', colPositions[0], yPos);
+                    doc.text('Car No', colPositions[1], yPos);
+                    doc.text('Driver', colPositions[2], yPos);
+                    doc.text('Time', colPositions[3], yPos);
+                    yPos += 8;
+                    
+                    // Table content
+                    doc.setFontSize(10);
+                    doc.setFont(undefined, 'normal');
+                    
+                    wave.entries.forEach((entry, idx) => {
+                        // Check if we need a new page
+                        if (yPos > 270) {
+                            doc.addPage();
+                            yPos = 20;
+                            
+                            // Repeat headers on new page
+                            doc.setFontSize(11);
+                            doc.setFont(undefined, 'bold');
+                            doc.text('Grid Pos', colPositions[0], yPos);
+                            doc.text('Car No', colPositions[1], yPos);
+                            doc.text('Driver', colPositions[2], yPos);
+                            doc.text('Time', colPositions[3], yPos);
+                            yPos += 8;
+                            doc.setFontSize(10);
+                            doc.setFont(undefined, 'normal');
+                        }
+                        
+                        const pos = currentPosition + idx;
+                        const num = entry.Number || '?';
+                        const driver = entry.Driver || 'TBD';
+                        const time = entry.BestTime || '--:--';
+                        
+                        // Table row data
+                        doc.text(pos.toString(), colPositions[0], yPos);
+                        doc.text(num.toString(), colPositions[1], yPos);
+                        doc.text(driver, colPositions[2], yPos);
+                        doc.text(time, colPositions[3], yPos);
+                        yPos += 6;
+                    });
+                    
+                    // Empty positions note
+                    if (wave.emptyPositions > 0 && waveIdx < finalGrid.length - 1) {
+                        doc.setFontSize(9);
+                        doc.setFont(undefined, 'italic');
+                        doc.text(`[${wave.emptyPositions} empty position${wave.emptyPositions > 1 ? 's' : ''}]`, 20, yPos);
+                        doc.setFont(undefined, 'normal');
+                        doc.setFontSize(10);
+                        yPos += 8;
+                    }
+                    
+                    currentPosition += wave.entries.length + (wave.emptyPositions || 0);
+                    yPos += 10; // Reduced space between waves
+                });
+                
+                // Add timestamp at bottom of last page
+                const now = new Date();
+                const pageHeight = doc.internal.pageSize.height;
+                doc.setFontSize(8);
+                doc.setFont(undefined, 'normal');
+                doc.text(`Generated: ${now.toLocaleString()}`, 105, pageHeight - 10, { align: 'center' });
+                
+                doc.save('starting-grid.pdf');
+            };
+            
+            const renderStep = () => {
+                switch(currentStep) {
+                    case 1:
+                        return (
+                            <div>
+                                <div 
+                                    className="upload-area"
+                                    onDrop={handleDrop}
+                                    onDragOver={handleDragOver}
+                                    onDragLeave={handleDragLeave}
+                                    onClick={() => fileInputRef.current.click()}
+                                >
+                                    <div className="upload-icon">📁</div>
+                                    <h2>Drop CSV files here or click to browse</h2>
+                                    <p>Upload your race results files (CSV format)</p>
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        multiple
+                                        accept=".csv"
+                                        style={{ display: 'none' }}
+                                        onChange={(e) => handleFileUpload(e.target.files)}
+                                    />
+                                </div>
+                                
+                                {uploadedFiles.length > 0 && (
+                                    <div className="file-list">
+                                        <h3>Uploaded Files:</h3>
+                                        {uploadedFiles.map((file, idx) => (
+                                            <div key={idx} className="file-item">
+                                                <span className="file-name">{file.name}</span>
+                                                <button className="remove-file" onClick={() => removeFile(idx)}>
+                                                    Remove
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                
+                                <div className="btn-group">
+                                    <button 
+                                        className="btn btn-primary"
+                                        onClick={() => setCurrentStep(2)}
+                                        disabled={uploadedFiles.length === 0}
+                                    >
+                                        Next Step
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                        
+                    case 2:
+                        return (
+                            <div>
+                                <h2>Configure Wave Structure</h2>
+                                <div className="form-group">
+                                    <label>Number of Waves:</label>
+                                    <input
+                                        type="number"
+                                        className="form-control number-input"
+                                        min="1"
+                                        max="10"
+                                        value={waveCount}
+                                        onChange={(e) => setWaveCount(parseInt(e.target.value) || 1)}
+                                    />
+                                </div>
+                                
+                                <div className="btn-group">
+                                    <button 
+                                        className="btn btn-secondary"
+                                        onClick={() => setCurrentStep(1)}
+                                    >
+                                        Back
+                                    </button>
+                                    <button 
+                                        className="btn btn-primary"
+                                        onClick={() => {
+                                            initializeWaveConfigs();
+                                            setCurrentStep(3);
+                                        }}
+                                    >
+                                        Configure Waves
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                        
+                    case 3:
+                        const availableClasses = extractClasses().sort();
+                        
+                        // Get all classes already assigned to other waves
+                        const getAssignedClasses = (excludeWaveIndex) => {
+                            const assigned = new Set();
+                            waveConfigs.forEach((wave, index) => {
+                                if (index !== excludeWaveIndex) {
+                                    wave.classes.forEach(cls => assigned.add(cls));
+                                }
+                            });
+                            return assigned;
+                        };
+                        
+                        // Count cars in a wave configuration
+                        const getCarCountInWave = (waveConfig) => {
+                            let carCount = 0;
+                            const classVariations = ['Class', 'class', 'CLASS'];
+                            const driverVariations = ['Name', 'Driver', 'DriverName', 'Pilot'];
+                            const waveDataMap = new Map();
+                            
+                            parsedData.forEach(file => {
+                                file.data.forEach(row => {
+                                    const rowClass = normalizeFieldName(row, classVariations);
+                                    if (waveConfig.classes.includes(rowClass)) {
+                                        const driverKey = normalizeFieldName(row, driverVariations);
+                                        if (driverKey) {
+                                            const key = driverKey.trim().toLowerCase();
+                                            if (!waveDataMap.has(key)) {
+                                                waveDataMap.set(key, true);
+                                                carCount++;
+                                            }
+                                        }
+                                    }
+                                });
+                            });
+                            
+                            return carCount;
+                        };
+                        
+                        return (
+                            <div>
+                                <h2>Configure Each Wave</h2>
+                                {waveConfigs.map((config, idx) => {
+                                    const assignedToOtherWaves = getAssignedClasses(idx);
+                                    
+                                    return (
+                                        <div key={idx} className="wave-config">
+                                            <div className="wave-header">
+                                                <div className="wave-title">Wave {config.waveNumber}</div>
+                                            </div>
+                                            
+                                            <div className="form-group">
+                                                <label>Start Type:</label>
+                                                <div className="radio-group">
+                                                    <label className="radio-label">
+                                                        <input
+                                                            type="radio"
+                                                            value="flying"
+                                                            checked={config.startType === 'flying'}
+                                                            onChange={(e) => updateWaveConfig(idx, 'startType', e.target.value)}
+                                                            disabled={idx > 0 && waveConfigs[idx-1].startType === 'standing'}
+                                                        />
+                                                        Flying Start
+                                                    </label>
+                                                    <label className="radio-label">
+                                                        <input
+                                                            type="radio"
+                                                            value="standing"
+                                                            checked={config.startType === 'standing'}
+                                                            onChange={(e) => updateWaveConfig(idx, 'startType', e.target.value)}
+                                                        />
+                                                        Standing Start
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="form-group">
+                                                <label>Assign Classes:</label>
+                                                <div className="checkbox-group">
+                                                    {availableClasses.map(cls => {
+                                                        const isAssignedElsewhere = assignedToOtherWaves.has(cls);
+                                                        return (
+                                                            <label 
+                                                                key={cls} 
+                                                                className="checkbox-label"
+                                                                style={{ 
+                                                                    opacity: isAssignedElsewhere ? 0.5 : 1,
+                                                                    cursor: isAssignedElsewhere ? 'not-allowed' : 'pointer'
+                                                                }}
+                                                                title={isAssignedElsewhere ? `Already assigned to another wave` : ''}
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={config.classes.includes(cls)}
+                                                                    disabled={isAssignedElsewhere}
+                                                                    onChange={(e) => {
+                                                                        if (e.target.checked) {
+                                                                            updateWaveConfig(idx, 'classes', [...config.classes, cls]);
+                                                                        } else {
+                                                                            updateWaveConfig(idx, 'classes', config.classes.filter(c => c !== cls));
+                                                                        }
+                                                                    }}
+                                                                />
+                                                                {cls}
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        
+                                        <div className="form-group">
+                                            <label>Sort By:</label>
+                                            <select 
+                                                className="form-control"
+                                                value={config.sortBy}
+                                                onChange={(e) => updateWaveConfig(idx, 'sortBy', e.target.value)}
+                                            >
+                                                <option value="position">Finishing Position</option>
+                                                <option value="bestTime">Best Time</option>
+                                                <option value="secondBest">Second Best Time</option>
+                                                <option value="points">Points</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div className="form-group">
+                                            <label>Grid Order:</label>
+                                            <select 
+                                                className="form-control"
+                                                value={config.gridOrder}
+                                                onChange={(e) => updateWaveConfig(idx, 'gridOrder', e.target.value)}
+                                            >
+                                                <option value="straight">Straight Up</option>
+                                                <option value="fastestFirst">Fastest Class First</option>
+                                                <option value="slowestFirst">Slowest Class First</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div className="form-group">
+                                            <label className="checkbox-label">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={config.inverted}
+                                                    onChange={(e) => updateWaveConfig(idx, 'inverted', e.target.checked)}
+                                                />
+                                                Invert Grid
+                                            </label>
+                                            {config.inverted && (
+                                                <div style={{ marginTop: '10px' }}>
+                                                    <div className="radio-group" style={{ marginBottom: '10px' }}>
+                                                        <label className="radio-label">
+                                                            <input
+                                                                type="radio"
+                                                                checked={config.invertAll}
+                                                                onChange={() => updateWaveConfig(idx, 'invertAll', true)}
+                                                            />
+                                                            Invert All
+                                                        </label>
+                                                        <label className="radio-label">
+                                                            <input
+                                                                type="radio"
+                                                                checked={!config.invertAll}
+                                                                onChange={() => updateWaveConfig(idx, 'invertAll', false)}
+                                                            />
+                                                            Invert Specific Count
+                                                        </label>
+                                                    </div>
+                                                    {!config.invertAll && (
+                                                        <div>
+                                                            <label>Number of positions to invert:</label>
+                                                            <input
+                                                                type="number"
+                                                                className="form-control number-input"
+                                                                min="2"
+                                                                max={Math.max(2, getCarCountInWave(config))}
+                                                                value={config.invertCount}
+                                                                onChange={(e) => updateWaveConfig(idx, 'invertCount', parseInt(e.target.value) || 2)}
+                                                            />
+                                                            <small style={{ color: '#666', fontSize: '0.8rem' }}>
+                                                                Max: {getCarCountInWave(config)} cars in this wave
+                                                            </small>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                        
+                                        {idx < waveConfigs.length - 1 && (
+                                            <div className="form-group">
+                                                <label>Empty positions after this wave:</label>
+                                                <input
+                                                    type="number"
+                                                    className="form-control number-input"
+                                                    min="0"
+                                                    max="10"
+                                                    value={config.emptyPositions}
+                                                    onChange={(e) => updateWaveConfig(idx, 'emptyPositions', parseInt(e.target.value) || 0)}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                    );
+                                })}
+                                
+                                <div className="btn-group">
+                                    <button 
+                                        className="btn btn-secondary"
+                                        onClick={() => setCurrentStep(2)}
+                                    >
+                                        Back
+                                    </button>
+                                    <button 
+                                        className="btn btn-primary"
+                                        onClick={() => {
+                                            buildGrid();
+                                            setCurrentStep(4);
+                                        }}
+                                    >
+                                        Build Grid
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                        
+                    case 4:
+                        return (
+                            <div>
+                                <h2>Review and Adjust Starting Grid</h2>
+                                <p style={{ marginBottom: '20px', color: '#666' }}>
+                                    Drag and drop entries to manually adjust positions
+                                </p>
+                                
+                                <div className="grid-preview">
+                                    {(() => {
+                                        let currentPosition = 1;
+                                        
+                                        // Function to generate wave description
+                                        const generateWaveDescription = (config) => {
+                                            const descriptions = [];
+                                            
+                                            // Sort criteria
+                                            const sortLabels = {
+                                                'position': 'Finishing Position',
+                                                'bestTime': 'Best Time',
+                                                'secondBest': 'Second Best Time',
+                                                'points': 'Points'
+                                            };
+                                            descriptions.push(`Sorted by ${sortLabels[config.sortBy] || 'Unknown'}`);
+                                            
+                                            // Grid order
+                                            const orderLabels = {
+                                                'straight': 'straight up',
+                                                'fastestFirst': 'fastest class first',
+                                                'slowestFirst': 'slowest class first'
+                                            };
+                                            descriptions.push(`${orderLabels[config.gridOrder] || 'unknown order'}`);
+                                            
+                                            // Inversion
+                                            if (config.inverted) {
+                                                if (config.invertAll) {
+                                                    descriptions.push('entire grid inverted');
+                                                } else {
+                                                    descriptions.push(`top ${config.invertCount} positions inverted`);
+                                                }
+                                            }
+                                            
+                                            // Classes
+                                            if (config.classes && config.classes.length > 0) {
+                                                descriptions.push(`Classes: ${config.classes.join(', ')}`);
+                                            }
+                                            
+                                            return descriptions.join(' • ');
+                                        };
+                                        
+                                        return finalGrid.map((wave, waveIdx) => {
+                                            const waveStartPosition = currentPosition;
+                                            const waveEntries = wave.entries.map((entry, entryIdx) => ({
+                                                ...entry,
+                                                gridPosition: currentPosition + entryIdx
+                                            }));
+                                            currentPosition += wave.entries.length + (wave.emptyPositions || 0);
+                                            
+                                            return (
+                                                <div key={waveIdx} className="grid-wave">
+                                                    <div className="grid-wave-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                        <span>
+                                                            Wave {waveIdx + 1} - {wave.config.startType.toUpperCase()} Start
+                                                            {wave.emptyPositions > 0 && ` (${wave.emptyPositions} empty position${wave.emptyPositions > 1 ? 's' : ''} after)`}
+                                                        </span>
+                                                        <div style={{ display: 'flex', gap: '5px' }}>
+                                                            {waveIdx > 0 && (
+                                                                <span 
+                                                                    title="Combine with previous wave"
+                                                                    style={{ 
+                                                                        cursor: 'pointer',
+                                                                        color: 'rgba(255, 255, 255, 0.8)',
+                                                                        fontSize: '1.3rem',
+                                                                        padding: '5px 10px',
+                                                                        borderRadius: '4px',
+                                                                        transition: 'all 0.2s ease'
+                                                                    }}
+                                                                    onClick={() => combineWithPreviousWave(waveIdx)}
+                                                                    onMouseEnter={(e) => {
+                                                                        e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                                                                        e.target.style.color = 'white';
+                                                                    }}
+                                                                    onMouseLeave={(e) => {
+                                                                        e.target.style.backgroundColor = 'transparent';
+                                                                        e.target.style.color = 'rgba(255, 255, 255, 0.8)';
+                                                                    }}
+                                                                >
+                                                                    ⬆️
+                                                                </span>
+                                                            )}
+                                                            {isWaveModified(waveIdx) && (
+                                                                <span 
+                                                                    title="Reset wave to original order"
+                                                                    style={{ 
+                                                                        cursor: 'pointer',
+                                                                        color: 'rgba(255, 255, 255, 0.8)',
+                                                                        fontSize: '1.3rem',
+                                                                        padding: '5px 10px',
+                                                                        borderRadius: '4px',
+                                                                        transition: 'all 0.2s ease'
+                                                                    }}
+                                                                    onClick={() => resetWave(waveIdx)}
+                                                                    onMouseEnter={(e) => {
+                                                                        e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                                                                        e.target.style.color = 'white';
+                                                                    }}
+                                                                    onMouseLeave={(e) => {
+                                                                        e.target.style.backgroundColor = 'transparent';
+                                                                        e.target.style.color = 'rgba(255, 255, 255, 0.8)';
+                                                                    }}
+                                                                >
+                                                                    ↺
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div style={{
+                                                        padding: '10px 20px',
+                                                        background: '#f8f9fa',
+                                                        fontSize: '0.9rem',
+                                                        color: '#666',
+                                                        borderBottom: '1px solid #e0e0e0',
+                                                        fontStyle: 'italic'
+                                                    }}>
+                                                        {generateWaveDescription(wave.config)}
+                                                    </div>
+                                                    {waveEntries.map((entry, entryIdx) => (
+                                                        <div 
+                                                            key={entryIdx} 
+                                                            className={`grid-entry ${draggedOver?.waveIndex === waveIdx && draggedOver?.entryIndex === entryIdx ? 'drag-over' : ''}`}
+                                                            draggable
+                                                            onDragStart={(e) => handleGridDragStart(e, waveIdx, entryIdx)}
+                                                            onDragOver={(e) => handleGridDragOver(e, waveIdx, entryIdx)}
+                                                            onDrop={(e) => handleGridDrop(e, waveIdx, entryIdx)}
+                                                        >
+                                                            <span className="drag-handle">☰</span>
+                                                            <div className="grid-position">{entry.gridPosition}</div>
+                                                            <div className="grid-car">
+                                                                <div className="grid-car-number">
+                                                                    {entry.Number || '?'}
+                                                                </div>
+                                                                <div className="grid-driver">
+                                                                    {entry.Driver || 'Unknown Driver'}
+                                                                </div>
+                                                                <div className="grid-class">
+                                                                    {entry.Class || 'N/A'}
+                                                                </div>
+                                                                <div className="grid-time">
+                                                                    {entry.BestTime || '--:--'}
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ display: 'flex', gap: '5px', marginLeft: '10px' }}>
+                                                                <span 
+                                                                    title="Reposition to end of wave"
+                                                                    style={{ 
+                                                                        cursor: 'pointer', 
+                                                                        color: '#667eea',
+                                                                        fontSize: '1.2rem',
+                                                                        padding: '5px'
+                                                                    }}
+                                                                    onClick={() => moveToEndOfWave(waveIdx, entryIdx)}
+                                                                >
+                                                                    ⤵️
+                                                                </span>
+                                                                {(wave.config.gridOrder === 'fastestFirst' || wave.config.gridOrder === 'slowestFirst') && (
+                                                                    <span 
+                                                                        title="Reposition to end of class"
+                                                                        style={{ 
+                                                                            cursor: 'pointer', 
+                                                                            color: '#764ba2',
+                                                                            fontSize: '1.2rem',
+                                                                            padding: '5px'
+                                                                        }}
+                                                                        onClick={() => moveToEndOfClass(waveIdx, entryIdx)}
+                                                                    >
+                                                                        📋
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                    {wave.emptyPositions > 0 && waveIdx < finalGrid.length - 1 && (
+                                                        <div style={{ 
+                                                            padding: '10px 20px', 
+                                                            textAlign: 'center', 
+                                                            color: '#999',
+                                                            fontStyle: 'italic',
+                                                            borderBottom: '1px solid #e0e0e0'
+                                                        }}>
+                                                            {wave.emptyPositions} empty position{wave.emptyPositions > 1 ? 's' : ''}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        });
+                                    })()}
+                                </div>
+                                
+                                <div className="btn-group">
+                                    <button 
+                                        className="btn btn-secondary"
+                                        onClick={() => setCurrentStep(3)}
+                                    >
+                                        Back
+                                    </button>
+                                    <button 
+                                        className="btn btn-primary"
+                                        onClick={() => setCurrentStep(5)}
+                                    >
+                                        Finalize Grid
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                        
+                    case 5:
+                        return (
+                            <div style={{ textAlign: 'center' }}>
+                                <h2>Export Starting Grid</h2>
+                                <p style={{ fontSize: '1.2rem', marginBottom: '30px', color: '#666' }}>
+                                    Your starting grid is ready for export!
+                                </p>
+                                
+                                <div style={{ 
+                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                    color: 'white',
+                                    padding: '40px',
+                                    borderRadius: '15px',
+                                    maxWidth: '400px',
+                                    margin: '0 auto 30px'
+                                }}>
+                                    <div style={{ fontSize: '3rem', marginBottom: '20px' }}>📄</div>
+                                    <h3>Grid Summary</h3>
+                                    <p>Total Waves: {finalGrid.length}</p>
+                                    <p>Total Entries: {finalGrid.reduce((sum, wave) => sum + wave.entries.length, 0)}</p>
+                                </div>
+                                
+                                <div style={{ maxWidth: '400px', margin: '0 auto 30px' }}>
+                                    <div className="form-group" style={{ textAlign: 'left' }}>
+                                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#555' }}>
+                                            Grid Name:
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="form-control"
+                                            placeholder="Enter grid name (e.g., 'Spring Championship Race 1')"
+                                            value={gridName}
+                                            onChange={(e) => setGridName(e.target.value)}
+                                            style={{ textAlign: 'center' }}
+                                        />
+                                    </div>
+                                </div>
+                                
+                                <div className="btn-group">
+                                    <button 
+                                        className="btn btn-secondary"
+                                        onClick={() => setCurrentStep(4)}
+                                    >
+                                        Back to Review
+                                    </button>
+                                    <button 
+                                        className="btn btn-primary"
+                                        onClick={generatePDF}
+                                        style={{ 
+                                            background: 'linear-gradient(135deg, #4caf50 0%, #45a049 100%)',
+                                            fontSize: '1.1rem',
+                                            padding: '15px 40px'
+                                        }}
+                                    >
+                                        📥 Download PDF
+                                    </button>
+                                    <button 
+                                        className="btn btn-secondary"
+                                        onClick={startNewGrid}
+                                        style={{ 
+                                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                            color: 'white',
+                                            fontSize: '1.1rem',
+                                            padding: '15px 40px'
+                                        }}
+                                    >
+                                        🆕 New Grid
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                        
+                    default:
+                        return null;
+                }
+            };
+            
+            return (
+                <div className="container">
+                    <div className="header">
+                        <h1>🏁 Grid Builder</h1>
+                        <p>Create professional starting grids for your racing events</p>
+                        <p style={{ fontSize: '0.9rem', marginTop: '15px', opacity: '0.85' }}>
+                            Provided by My Race Day - Building your comprehensive solution for professional motorsport event operations
+                        </p>
+                    </div>
+                    
+                    <div className="progress-bar">
+                        {steps.map(step => (
+                            <div 
+                                key={step.num}
+                                className={`progress-step ${currentStep === step.num ? 'active' : ''} ${currentStep > step.num ? 'completed' : ''}`}
+                                data-step={step.num}
+                            >
+                                <span>{step.label}</span>
+                            </div>
+                        ))}
+                    </div>
+                    
+                    <div className="content">
+                        {renderStep()}
+                    </div>
+                </div>
+            );
+        };
+        
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>

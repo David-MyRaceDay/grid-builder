@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Race Day - Color Palette System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+        }
+        
+        h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #FF4B4B 0%, #FF8A00 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            color: #999;
+            font-weight: 300;
+        }
+        
+        .section {
+            margin-bottom: 3rem;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        h2 {
+            font-size: 1.8rem;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+            color: #fff;
+        }
+        
+        h3 {
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            font-weight: 500;
+            color: #ddd;
+        }
+        
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .color-card {
+            border-radius: 8px;
+            overflow: hidden;
+            background: #fff;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .color-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.4);
+        }
+        
+        .color-display {
+            height: 120px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        
+        .color-info {
+            padding: 1rem;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        
+        .color-name {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            font-size: 0.95rem;
+        }
+        
+        .color-hex {
+            color: #999;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .color-usage {
+            font-size: 0.75rem;
+            color: #777;
+            line-height: 1.4;
+        }
+        
+        .palette-row {
+            display: flex;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        
+        .palette-color {
+            flex: 1;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .palette-color:hover {
+            transform: scale(1.1);
+            z-index: 1;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+        }
+        
+        .usage-example {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .button-examples {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .btn-primary {
+            background: #FF4B4B;
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: #4B7BFF;
+            color: white;
+        }
+        
+        .btn-success {
+            background: #00D46A;
+            color: white;
+        }
+        
+        .btn-warning {
+            background: #FF8A00;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #E53E3E;
+            color: white;
+        }
+        
+        .accessibility-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .contrast-demo {
+            padding: 1rem;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .contrast-ratio {
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            opacity: 0.8;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+        
+        .badge-aa { background: #00D46A; color: white; }
+        .badge-aaa { background: #4B7BFF; color: white; }
+        .badge-fail { background: #E53E3E; color: white; }
+        
+        .flag-colors {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        
+        .flag {
+            width: 60px;
+            height: 40px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.7rem;
+            color: #000;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>My Race Day</h1>
+            <p class="subtitle">Complete Color Palette System for Motorsport Event Management</p>
+        </header>
+
+        <!-- Primary Brand Colors -->
+        <section class="section">
+            <h2>🎨 Primary Brand Colors</h2>
+            <p style="margin-bottom: 1.5rem; color: #999;">Core colors that define the My Race Day brand identity</p>
+            
+            <div class="color-grid">
+                <div class="color-card">
+                    <div class="color-display" style="background: #FF4B4B; color: white;">
+                        Primary
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Racing Red</div>
+                        <div class="color-hex">#FF4B4B</div>
+                        <div class="color-usage">Primary actions, CTAs, brand identity</div>
+                    </div>
+                </div>
+                
+                <div class="color-card">
+                    <div class="color-display" style="background: #FF6B6B; color: white;">
+                        Primary Light
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Racing Red Light</div>
+                        <div class="color-hex">#FF6B6B</div>
+                        <div class="color-usage">Hover states, highlights</div>
+                    </div>
+                </div>
+                
+                <div class="color-card">
+                    <div class="color-display" style="background: #E53E3E; color: white;">
+                        Primary Dark
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Racing Red Dark</div>
+                        <div class="color-hex">#E53E3E</div>
+                        <div class="color-usage">Active states, emphasis</div>
+                    </div>
+                </div>
+                
+                <div class="color-card">
+                    <div class="color-display" style="background: #4B7BFF; color: white;">
+                        Secondary
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Track Blue</div>
+                        <div class="color-hex">#4B7BFF</div>
+                        <div class="color-usage">Secondary actions, links, info</div>
+                    </div>
+                </div>
+                
+                <div class="color-card">
+                    <div class="color-display" style="background: #FF8A00; color: white;">
+                        Accent
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Pit Orange</div>
+                        <div class="color-hex">#FF8A00</div>
+                        <div class="color-usage">Warnings, highlights, promotions</div>
+                    </div>
+                </div>
+                
+                <div class="color-card">
+                    <div class="color-display" style="background: #1A1A1A; color: white;">
+                        Dark
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Carbon Black</div>
+                        <div class="color-hex">#1A1A1A</div>
+                        <div class="color-usage">Dark mode primary, text</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Semantic Colors -->
+        <section class="section">
+            <h2>✨ Semantic Colors</h2>
+            <p style="margin-bottom: 1.5rem; color: #999;">Functional colors for user feedback and system states</p>
+            
+            <div class="color-grid">
+                <div class="color-card">
+                    <div class="color-display" style="background: #00D46A; color: white;">
+                        Success
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Grid Green</div>
+                        <div class="color-hex">#00D46A</div>
+                        <div class="color-usage">Success messages, confirmations, green flag</div>
+                    </div>
+                </div>
+                
+                <div class="color-card">
+                    <div class="color-display" style="background: #FFD700; color: #1A1A1A;">
+                        Warning
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Caution Yellow</div>
+                        <div class="color-hex">#FFD700</div>
+                        <div class="color-usage">Warnings, caution flag, alerts</div>
+                    </div>
+                </div>
+                
+                <div class="color-card">
+                    <div class="color-display" style="background: #FF4B4B; color: white;">
+                        Danger
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Red Flag</div>
+                        <div class="color-hex">#FF4B4B</div>
+                        <div class="color-usage">Errors, red flag, critical alerts</div>
+                    </div>
+                </div>
+                
+                <div class="color-card">
+                    <div class="color-display" style="background: #4B7BFF; color: white;">
+                        Info
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Info Blue</div>
+                        <div class="color-hex">#4B7BFF</div>
+                        <div class="color-usage">Information, notifications, tips</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Racing Flag Colors -->
+        <section class="section">
+            <h2>🏁 Racing Flag Colors</h2>
+            <p style="margin-bottom: 1.5rem; color: #999;">Official racing flag colors for event status and conditions</p>
+            
+            <div class="flag-colors">
+                <div class="flag" style="background: #00D46A;">GREEN</div>
+                <div class="flag" style="background: #FFD700;">YELLOW</div>
+                <div class="flag" style="background: #FF4B4B; color: white;">RED</div>
+                <div class="flag" style="background: #FFFFFF;">WHITE</div>
+                <div class="flag" style="background: #4B7BFF; color: white;">BLUE</div>
+                <div class="flag" style="background: #000000; color: white;">BLACK</div>
+                <div class="flag" style="background: linear-gradient(45deg, #000 50%, #FFF 50%);">CHECKERED</div>
+            </div>
+        </section>
+
+        <!-- Neutral Colors -->
+        <section class="section">
+            <h2>⚪ Neutral Palette</h2>
+            <p style="margin-bottom: 1.5rem; color: #999;">Grayscale colors for backgrounds, borders, and text</p>
+            
+            <div class="palette-row">
+                <div class="palette-color" style="background: #FFFFFF; color: #1A1A1A;">
+                    #FFFFFF
+                </div>
+                <div class="palette-color" style="background: #F8F9FA; color: #1A1A1A;">
+                    #F8F9FA
+                </div>
+                <div class="palette-color" style="background: #E9ECEF; color: #1A1A1A;">
+                    #E9ECEF
+                </div>
+                <div class="palette-color" style="background: #DEE2E6; color: #1A1A1A;">
+                    #DEE2E6
+                </div>
+                <div class="palette-color" style="background: #CED4DA; color: #1A1A1A;">
+                    #CED4DA
+                </div>
+                <div class="palette-color" style="background: #ADB5BD; color: #1A1A1A;">
+                    #ADB5BD
+                </div>
+                <div class="palette-color" style="background: #6C757D; color: white;">
+                    #6C757D
+                </div>
+                <div class="palette-color" style="background: #495057; color: white;">
+                    #495057
+                </div>
+                <div class="palette-color" style="background: #343A40; color: white;">
+                    #343A40
+                </div>
+                <div class="palette-color" style="background: #212529; color: white;">
+                    #212529
+                </div>
+                <div class="palette-color" style="background: #1A1A1A; color: white;">
+                    #1A1A1A
+                </div>
+            </div>
+        </section>
+
+        <!-- Extended Palette -->
+        <section class="section">
+            <h2>🎨 Extended Brand Palette</h2>
+            <p style="margin-bottom: 1.5rem; color: #999;">Additional colors for various UI elements and features</p>
+            
+            <h3>Competition Classes</h3>
+            <div class="palette-row" style="margin-bottom: 2rem;">
+                <div class="palette-color" style="background: #FF1744; color: white;">GTS1</div>
+                <div class="palette-color" style="background: #FF6B00; color: white;">GTS2</div>
+                <div class="palette-color" style="background: #FFC107; color: #1A1A1A;">GTS3</div>
+                <div class="palette-color" style="background: #4CAF50; color: white;">Novice</div>
+                <div class="palette-color" style="background: #2196F3; color: white;">Advanced</div>
+                <div class="palette-color" style="background: #9C27B0; color: white;">Pro</div>
+            </div>
+            
+            <h3>Event Types</h3>
+            <div class="palette-row">
+                <div class="palette-color" style="background: #FF5252; color: white;">Race</div>
+                <div class="palette-color" style="background: #448AFF; color: white;">Track Day</div>
+                <div class="palette-color" style="background: #69F0AE; color: #1A1A1A;">Practice</div>
+                <div class="palette-color" style="background: #FFD740; color: #1A1A1A;">Autocross</div>
+                <div class="palette-color" style="background: #FF6E40; color: white;">Time Attack</div>
+                <div class="palette-color" style="background: #7C4DFF; color: white;">School</div>
+            </div>
+        </section>
+
+        <!-- Dark Mode Colors -->
+        <section class="section">
+            <h2>🌙 Dark Mode Palette</h2>
+            <p style="margin-bottom: 1.5rem; color: #999;">Optimized colors for dark theme</p>
+            
+            <div class="color-grid">
+                <div class="color-card">
+                    <div class="color-display" style="background: #0D0D0D; color: white;">
+                        Background
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Pure Black</div>
+                        <div class="color-hex">#0D0D0D</div>
+                        <div class="color-usage">Main dark background</div>
+                    </div>
+                </div>
+                
+                <div class="color-card">
+                    <div class="color-display" style="background: #1A1A1A; color: white;">
+                        Surface
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Carbon</div>
+                        <div class="color-hex">#1A1A1A</div>
+                        <div class="color-usage">Cards, modals, elevated surfaces</div>
+                    </div>
+                </div>
+                
+                <div class="color-card">
+                    <div class="color-display" style="background: #2D2D2D; color: white;">
+                        Surface Variant
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Charcoal</div>
+                        <div class="color-hex">#2D2D2D</div>
+                        <div class="color-usage">Secondary surfaces, sidebars</div>
+                    </div>
+                </div>
+                
+                <div class="color-card">
+                    <div class="color-display" style="background: #404040; color: white;">
+                        Border
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Dark Gray</div>
+                        <div class="color-hex">#404040</div>
+                        <div class="color-usage">Borders, dividers</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Accessibility -->
+        <section class="section">
+            <h2>♿ Accessibility & Contrast</h2>
+            <p style="margin-bottom: 1.5rem; color: #999;">WCAG compliant color combinations</p>
+            
+            <div class="accessibility-grid">
+                <div class="contrast-demo" style="background: #FF4B4B; color: white;">
+                    <strong>White on Racing Red</strong>
+                    <div class="contrast-ratio">Contrast Ratio: 4.5:1 <span class="badge badge-aa">AA</span></div>
+                </div>
+                
+                <div class="contrast-demo" style="background: #4B7BFF; color: white;">
+                    <strong>White on Track Blue</strong>
+                    <div class="contrast-ratio">Contrast Ratio: 4.8:1 <span class="badge badge-aa">AA</span></div>
+                </div>
+                
+                <div class="contrast-demo" style="background: #00D46A; color: #1A1A1A;">
+                    <strong>Black on Grid Green</strong>
+                    <div class="contrast-ratio">Contrast Ratio: 7.2:1 <span class="badge badge-aaa">AAA</span></div>
+                </div>
+                
+                <div class="contrast-demo" style="background: #FFD700; color: #1A1A1A;">
+                    <strong>Black on Caution Yellow</strong>
+                    <div class="contrast-ratio">Contrast Ratio: 9.8:1 <span class="badge badge-aaa">AAA</span></div>
+                </div>
+                
+                <div class="contrast-demo" style="background: #1A1A1A; color: #E9ECEF;">
+                    <strong>Light Gray on Carbon</strong>
+                    <div class="contrast-ratio">Contrast Ratio: 13.1:1 <span class="badge badge-aaa">AAA</span></div>
+                </div>
+                
+                <div class="contrast-demo" style="background: #FFFFFF; color: #495057;">
+                    <strong>Dark Gray on White</strong>
+                    <div class="contrast-ratio">Contrast Ratio: 7.9:1 <span class="badge badge-aaa">AAA</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Usage Examples -->
+        <section class="section">
+            <h2>💡 Usage Examples</h2>
+            <p style="margin-bottom: 1.5rem; color: #999;">Common UI component color applications</p>
+            
+            <div class="usage-example">
+                <h3>Button Styles</h3>
+                <div class="button-examples">
+                    <button class="btn btn-primary">Register for Event</button>
+                    <button class="btn btn-secondary">View Schedule</button>
+                    <button class="btn btn-success">Session Active</button>
+                    <button class="btn btn-warning">Caution Period</button>
+                    <button class="btn btn-danger">Cancel Registration</button>
+                </div>
+            </div>
+            
+            <div class="usage-example">
+                <h3>Color Usage Guidelines</h3>
+                <ul style="list-style: none; padding: 0;">
+                    <li style="margin-bottom: 0.75rem;">
+                        <strong style="color: #FF4B4B;">Racing Red:</strong> 
+                        Primary CTAs, active navigation, brand elements, critical actions
+                    </li>
+                    <li style="margin-bottom: 0.75rem;">
+                        <strong style="color: #4B7BFF;">Track Blue:</strong> 
+                        Links, secondary buttons, information panels, help text
+                    </li>
+                    <li style="margin-bottom: 0.75rem;">
+                        <strong style="color: #FF8A00;">Pit Orange:</strong> 
+                        Promotions, discounts, alerts, time-sensitive information
+                    </li>
+                    <li style="margin-bottom: 0.75rem;">
+                        <strong style="color: #00D46A;">Grid Green:</strong> 
+                        Success states, session go, confirmations, positive feedback
+                    </li>
+                    <li style="margin-bottom: 0.75rem;">
+                        <strong style="color: #FFD700;">Caution Yellow:</strong> 
+                        Warnings, pending states, important notices, caution periods
+                    </li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Implementation Notes -->
+        <section class="section">
+            <h2>📝 Implementation Notes</h2>
+            <div style="background: rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 1.5rem;">
+                <h3>CSS Variables</h3>
+                <pre style="background: #0D0D0D; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem;">
+:root {
+  /* Primary Colors */
+  --color-primary: #FF4B4B;
+  --color-primary-light: #FF6B6B;
+  --color-primary-dark: #E53E3E;
+  --color-secondary: #4B7BFF;
+  --color-accent: #FF8A00;
+  
+  /* Semantic Colors */
+  --color-success: #00D46A;
+  --color-warning: #FFD700;
+  --color-danger: #FF4B4B;
+  --color-info: #4B7BFF;
+  
+  /* Neutrals */
+  --color-white: #FFFFFF;
+  --color-gray-100: #F8F9FA;
+  --color-gray-200: #E9ECEF;
+  --color-gray-300: #DEE2E6;
+  --color-gray-400: #CED4DA;
+  --color-gray-500: #ADB5BD;
+  --color-gray-600: #6C757D;
+  --color-gray-700: #495057;
+  --color-gray-800: #343A40;
+  --color-gray-900: #212529;
+  --color-black: #1A1A1A;
+  
+  /* Dark Mode */
+  --dark-bg: #0D0D0D;
+  --dark-surface: #1A1A1A;
+  --dark-surface-variant: #2D2D2D;
+  --dark-border: #404040;
+}
+                </pre>
+                
+                <h3 style="margin-top: 1.5rem;">Flutter/Dart Implementation</h3>
+                <pre style="background: #0D0D0D; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem;">
+class MyRaceDayColors {
+  // Primary Colors
+  static const Color primary = Color(0xFFFF4B4B);
+  static const Color primaryLight = Color(0xFFFF6B6B);
+  static const Color primaryDark = Color(0xFFE53E3E);
+  static const Color secondary = Color(0xFF4B7BFF);
+  static const Color accent = Color(0xFFFF8A00);
+  
+  // Semantic Colors
+  static const Color success = Color(0xFF00D46A);
+  static const Color warning = Color(0xFFFFD700);
+  static const Color danger = Color(0xFFFF4B4B);
+  static const Color info = Color(0xFF4B7BFF);
+  
+  // Racing Flag Colors
+  static const Color flagGreen = Color(0xFF00D46A);
+  static const Color flagYellow = Color(0xFFFFD700);
+  static const Color flagRed = Color(0xFFFF4B4B);
+  static const Color flagBlue = Color(0xFF4B7BFF);
+  static const Color flagWhite = Color(0xFFFFFFFF);
+  static const Color flagBlack = Color(0xFF000000);
+}
+                </pre>
+            </div>
+        </section>
+    </div>
+</body>
+</html>

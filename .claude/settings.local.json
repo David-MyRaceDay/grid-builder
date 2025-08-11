@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(firebase deploy:*)",
+      "Bash(grep:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tailwindcss init:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(PORT=3001 npm start)"
+    ],
+    "deny": []
+  }
+}
