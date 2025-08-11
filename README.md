@@ -1,70 +1,160 @@
-# Getting Started with Create React App
+# Grid Builder
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+![Version](https://img.shields.io/badge/version-0.2.4-blue.svg)
+![React](https://img.shields.io/badge/react-19.1.1-blue.svg)
+![License](https://img.shields.io/badge/license-Private-red.svg)
 
-## Available Scripts
+A professional racing grid builder application designed for motorsport event organizers. Create starting grids from CSV race data with advanced multi-wave configuration, intuitive drag-and-drop editing, and professional PDF/CSV export capabilities.
 
-In the project directory, you can run:
+## ✨ Features
 
-### `npm start`
+### 🏁 **Core Functionality**
+- **CSV Data Import**: Upload race results from MyLaps Orbits or other timing systems
+- **Multi-Wave Configuration**: Create up to 10 different starting waves
+- **Flexible Sorting**: Sort by position, best time, second best time, or points
+- **Grid Ordering**: Straight up, fastest class first, or slowest class first options
+- **Inversion Control**: Invert entire grid or specific number of positions
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### 🎯 **Advanced Features**
+- **Drag & Drop Editing**: Manually adjust driver positions with intuitive interface
+- **Class Management**: Move entire classes up/down in multi-class events
+- **Wave Merging**: Combine waves for optimal field management
+- **Flying/Standing Starts**: Configure different start types per wave
+- **Empty Position Handling**: Add gaps between waves for safety
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### 📊 **Export Options**
+- **Professional PDF**: Print-ready grid sheets with timing and driver information
+- **CSV Export**: Spreadsheet-compatible format for further processing
+- **Custom Grid Names**: Brand your starting grids with event information
 
-### `npm test`
+### 🎨 **Modern UI**
+- **shadcn/ui Components**: Modern, accessible React component library
+- **Tailwind CSS**: Utility-first styling for responsive design
+- **My Race Day Branding**: Official color scheme and professional appearance
+- **Responsive Design**: Works on desktop, tablet, and mobile devices
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## 🚀 Quick Start
 
-### `npm run build`
+### Prerequisites
+- Node.js 16.x or higher
+- npm or yarn package manager
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### Installation
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+```bash
+# Clone the repository
+git clone https://github.com/David-MyRaceDay/grid-builder.git
+cd grid-builder
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+# Install dependencies
+npm install
 
-### `npm run eject`
+# Start development server
+npm start
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+Open [http://localhost:3000](http://localhost:3000) to view the application.
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### Building for Production
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+```bash
+# Create optimized production build
+npm run build
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+# The build folder contains the production-ready files
+```
 
-## Learn More
+## 📁 Project Structure
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+```
+src/
+├── GridBuilderNew.js      # Main application component (shadcn/ui version)
+├── GridBuilder.js         # Legacy component (maintained for reference)
+├── components/ui/         # shadcn/ui component library
+│   ├── button.jsx
+│   ├── card.jsx
+│   ├── input.jsx
+│   └── ...
+├── lib/utils.js          # Utility functions for styling
+├── assets/               # SVG icons and brand assets
+│   ├── racing-flag.svg
+│   ├── myraceday-color-palette.html
+│   └── ...
+├── index.css            # Global styles with Tailwind directives
+└── App.js              # Root component
+```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## 🛠️ Technology Stack
 
-### Code Splitting
+- **Frontend Framework**: React 19.1.1
+- **UI Components**: shadcn/ui
+- **Styling**: Tailwind CSS 3.4.17
+- **CSV Processing**: Papa Parse 5.5.3
+- **PDF Generation**: jsPDF 3.0.1
+- **Icons**: Lucide React
+- **Build Tool**: Create React App
+- **Hosting**: Firebase Hosting
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## 🎨 Design System
 
-### Analyzing the Bundle Size
+The application uses the **My Race Day** official color palette:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+- **Racing Red**: `#FF4B4B` - Primary actions and brand identity
+- **Track Blue**: `#4B7BFF` - Secondary actions and information
+- **Grid Green**: `#00D46A` - Success states and confirmations
+- **Pit Orange**: `#FF8A00` - Warnings and highlights
+- **Carbon Black**: `#1A1A1A` - Dark mode and text
 
-### Making a Progressive Web App
+## 📖 Usage Guide
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+### 1. Upload CSV Files
+- Drag and drop or browse for CSV files exported from timing systems
+- Supports MyLaps Orbits format and standard racing data formats
+- Required columns: Driver, Number, Class
+- Optional columns: Best Time, 2nd Best Time, Points, Position
 
-### Advanced Configuration
+### 2. Configure Waves
+- Set the number of starting waves (1-10)
+- Assign classes to each wave
+- Choose sorting criteria (position, time, points)
+- Configure grid order and inversion options
+- Set start types (flying or standing starts)
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+### 3. Review and Edit
+- Preview the generated starting grid
+- Drag and drop drivers to adjust positions manually
+- Move entire classes up/down for multi-class events
+- Merge waves or reset to original configuration
 
-### Deployment
+### 4. Export
+- Generate professional PDF grid sheets
+- Export CSV data for timing systems
+- Add custom grid names and event branding
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+## 🔧 Development
 
-### `npm run build` fails to minify
+### Available Scripts
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+```bash
+npm start          # Start development server
+npm run build      # Build for production
+npm test           # Run test suite
+npm run eject      # Eject from Create React App (not recommended)
+```
+
+### Version Management
+
+This project follows semantic versioning:
+- **PATCH**: Bug fixes and code updates (increment after changes)
+- **MINOR**: New features (increment before deployment)  
+- **MAJOR**: Breaking changes or major overhauls
+
+## 🏆 Built for My Race Day
+
+This application is part of the My Race Day ecosystem, providing professional motorsport event management solutions. The Grid Builder integrates seamlessly with other My Race Day tools and services.
+
+**My Race Day** - Building your comprehensive solution for professional motorsport event operations.
+
+---
+
+*For support or feature requests, please contact the My Race Day development team.*
