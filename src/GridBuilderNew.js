@@ -2379,7 +2379,7 @@ const GridBuilder = () => {
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent>
-                                        <p className="mb-3">Import race data from CSV exports of Lap Times or Results files. The system automatically detects file types and consolidates data across multiple events.</p>
+                                        <p className="mb-3">Import race data from CSV exports of Lap Times or Results files. The system automatically detects file types and consolidates data across multiple runs.</p>
                                         <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
                                             <li>Drag & drop or click to upload CSV files</li>
                                             <li>Supports both Results and Lap Times exports</li>
@@ -2487,7 +2487,7 @@ const GridBuilder = () => {
                                     <div className="space-y-3">
                                         <div>
                                             <h4 className="font-semibold text-sm mb-1">Multi-File Data Consolidation</h4>
-                                            <p className="text-sm text-gray-600">Upload multiple events to combine driver statistics across sessions.</p>
+                                            <p className="text-sm text-gray-600">Upload multiple race sessions to combine driver statistics across runs.</p>
                                         </div>
                                         <div>
                                             <h4 className="font-semibold text-sm mb-1">Lap Times Support</h4>
@@ -2511,7 +2511,7 @@ const GridBuilder = () => {
                                 <AlertDescription>
                                     <ul className="list-disc pl-5 space-y-1 mt-2">
                                         <li><strong>Data Preparation:</strong> Include Best Tm, Points, PIC columns for full functionality</li>
-                                        <li><strong>Multi-File Support:</strong> Upload multiple events to consolidate driver statistics</li>
+                                        <li><strong>Multi-File Support:</strong> Upload multiple sessions to consolidate driver statistics</li>
                                         <li><strong>Tie-Breaking:</strong> Configure cascading tie-breakers for points-based sorting</li>
                                         <li><strong>Column Warnings:</strong> Check file warnings to ensure all features are available</li>
                                         <li><strong>Class Ordering:</strong> Use fastest/slowest class first for different race dynamics</li>

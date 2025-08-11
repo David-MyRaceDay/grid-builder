@@ -16,7 +16,7 @@ Grid Builder is a web application designed to help race organizers create profes
 **Supported File Types**:
 - **Results Files**: Standard race results with finishing positions and times
 - **Lap Times Files**: Individual lap data exports (automatically extracts best times)
-- **Multiple Events**: Upload multiple files to consolidate driver data across sessions
+- **Multiple Runs**: Upload multiple files to consolidate driver data across runs
 
 **Recommended Columns for Results Files**:
 - **Essential**: Driver/Name, Number, Class (required for basic functionality)
@@ -72,8 +72,8 @@ Grid Builder is a web application designed to help race organizers create profes
 - **Best Overall Time**: Sort by fastest lap times across all files
 - **Second Best Overall Time**: Sort by second-fastest times
 - **Best Second-Best Time**: Best of the second-best times across files
-- **Total Points**: Sum of points across all events
-- **Average Points**: Average points per event (multiple files only)
+- **Total Points**: Sum of points across all sessions
+- **Average Points**: Average points per session (multiple files only)
 
 **Group By Options**:
 - **None - Straight Up**: Maintain sort order as-is
@@ -154,7 +154,7 @@ When sorting by points, configure up to 3 cascading tie-breakers:
 - **Logistics**: Consider pit space and timing requirements
 
 ### Using Class-Based Ordering
-- Great for multi-class events
+- Great for multi-class runs
 - Keeps similar cars together
 - Use class movement controls to adjust running order
 - Fastest/slowest class first creates different race dynamics
@@ -170,7 +170,7 @@ When sorting by points, configure up to 3 cascading tie-breakers:
 - **Results Files**: Include Best Tm, 2nd Best, Points, Pos, PIC columns for full functionality
 - **Lap Times Files**: Ensure driver names/numbers are consistent with results
 - **Multiple Files**: Use consistent driver names and numbers across all files
-- **Class Names**: Keep class naming consistent across events
+- **Class Names**: Keep class naming consistent across runs
 
 ### MyLaps Orbits Export Tips
 - Configure your results view to show all desired columns before exporting
@@ -211,9 +211,9 @@ When sorting by points, configure up to 3 cascading tie-breakers:
 - Upload multiple race sessions or events
 - Automatic driver matching across files
 - Consolidated statistics:
-  - Track all lap times from all events
+  - Track all lap times from all sessions
   - Calculate total and average points
-  - Find best positions across events
+  - Find best positions across sessions
   - Identify best and second-best times overall
 
 ### Lap Times File Support
@@ -271,7 +271,7 @@ If you encounter issues or need help:
 ## What's New in Version 0.3.0
 
 ### Major Features Added:
-- **Multi-file timing data consolidation**: Upload multiple events and combine driver statistics
+- **Multi-file timing data consolidation**: Upload multiple session files and combine driver statistics
 - **Orbits lap times CSV support**: Automatic detection and processing of lap times files
 - **Advanced tie-breaking system**: 3-level cascading tie-breakers for points-based sorting
 - **Position in Class (PIC) data**: Extract and utilize PIC data for sorting and tie-breaking
