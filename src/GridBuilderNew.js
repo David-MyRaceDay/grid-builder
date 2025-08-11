@@ -57,6 +57,7 @@ const GridBuilder = () => {
     const isMovingRef = useRef(false);
     const [showTips, setShowTips] = useState(false);
     const [showHelpModal, setShowHelpModal] = useState(false);
+    const [fileWarnings, setFileWarnings] = useState(new Map());
     
     const steps = [
         { num: 1, label: 'Upload Files', icon: Upload },
@@ -370,6 +371,16 @@ const GridBuilder = () => {
             const newParsed = await Promise.all(csvFiles.map(parseCSV));
             const allParsedFiles = [...parsedData.map(d => d.originalFile || d), ...newParsed];
             
+            // Analyze each new file for missing columns
+            const newWarnings = new Map(fileWarnings);
+            newParsed.forEach(file => {
+                const warnings = analyzeFileColumns(file);
+                if (warnings.length > 0) {
+                    newWarnings.set(file.fileName, warnings);
+                }
+            });
+            setFileWarnings(newWarnings);
+            
             // Consolidate driver data across all files
             const consolidatedData = consolidateDriverData(allParsedFiles);
             
@@ -406,6 +417,11 @@ const GridBuilder = () => {
     const removeFile = (index) => {
         setUploadedFiles(prev => prev.filter((_, i) => i !== index));
         setParsedData(prev => prev.filter((_, i) => i !== index));
+        setFileWarnings(prev => {
+            const newWarnings = new Map(prev);
+            newWarnings.delete(uploadedFiles[index]?.name);
+            return newWarnings;
+        });
         setParseError('');
         setHasValidData(true);
     };
@@ -413,6 +429,7 @@ const GridBuilder = () => {
     const removeAllFiles = () => {
         setUploadedFiles([]);
         setParsedData([]);
+        setFileWarnings(new Map());
         setParseError('');
         setHasValidData(true);
     };
@@ -1251,6 +1268,65 @@ const GridBuilder = () => {
         updateWaveConfig(waveIndex, 'classes', unassignedClasses);
     };
     
+    // Analyze file for missing columns needed for sorting/grouping
+    const analyzeFileColumns = (file) => {
+        if (!file || !file.data || file.data.length === 0) return [];
+        
+        const warnings = [];
+        const headers = Object.keys(file.data[0] || {});
+        
+        // Check for class column (required for grouping)
+        const classVariations = ['Class', 'class', 'CLASS'];
+        if (!classVariations.some(col => headers.includes(col))) {
+            warnings.push('Class column missing - cannot group by class');
+        }
+        
+        // Check for driver/name column (required)
+        const driverVariations = ['Name', 'Driver', 'DriverName', 'Pilot'];
+        if (!driverVariations.some(col => headers.includes(col))) {
+            warnings.push('Driver/Name column missing');
+        }
+        
+        // Check for number column (required)
+        const numberVariations = ['No.', 'Number', 'CarNumber', 'Car', '#', 'Num'];
+        if (!numberVariations.some(col => headers.includes(col))) {
+            warnings.push('Car number column missing');
+        }
+        
+        // Check for time columns (optional but affects sorting options)
+        const bestTimeVariations = ['Best Tm', 'BestTime', 'Best Time', 'FastLap', 'Best', 'Time'];
+        const hasTime = bestTimeVariations.some(col => headers.includes(col));
+        
+        const secondTimeVariations = ['2nd Best', 'SecondBest', 'Second Best', 'Time2', '2nd'];
+        const hasSecondTime = secondTimeVariations.some(col => headers.includes(col));
+        
+        if (!hasTime && !file.fileName.toLowerCase().includes('laptimes')) {
+            warnings.push('Best time column missing - time-based sorting unavailable');
+        }
+        
+        // Check for position column (optional, single file only)
+        const positionVariations = ['Pos', 'Position', 'Finish', 'Place', 'P'];
+        const hasPosition = positionVariations.some(col => headers.includes(col));
+        
+        // Check for points column (optional)
+        const pointsVariations = ['Points', 'Pts', 'Score'];
+        const hasPoints = pointsVariations.some(col => headers.includes(col));
+        const hasValidPoints = hasPoints && file.data.some(row => {
+            const points = normalizeFieldName(row, pointsVariations);
+            return parseFloat(points) > 0;
+        });
+        
+        if (!hasValidPoints && headers.some(h => pointsVariations.includes(h))) {
+            warnings.push('Points column exists but contains no valid data');
+        }
+        
+        // Check for PIC column (optional but useful for tie-breaking)
+        const picVariations = ['PIC', 'PositionInClass', 'ClassPosition'];
+        const hasPIC = picVariations.some(col => headers.includes(col));
+        
+        return warnings;
+    };
+    
     const getCarCountInWave = (waveConfig) => {
         let carCount = 0;
         const classVariations = ['Class', 'class', 'CLASS'];
@@ -1295,14 +1371,22 @@ const GridBuilder = () => {
                                 </AccordionTrigger>
                                 <AccordionContent isOpen={showTips}>
                                     <div className="space-y-3 text-track-blue">
-                                        <p className="font-semibold">Before exporting from MyLaps Orbits:</p>
-                                        <ul className="list-disc pl-5 space-y-1">
-                                            <li><strong>For time-based sorting:</strong> Include "Best Tm" and "2nd Best" columns in your results view</li>
-                                            <li><strong>For points-based sorting:</strong> Include a "Points" column in your results view</li>
-                                            <li><strong>Required columns:</strong> Driver, Number, Class are always needed</li>
+                                        <p className="font-semibold">Supported File Types:</p>
+                                        <ul className="list-disc pl-5 space-y-1 mb-3">
+                                            <li><strong>Results Files:</strong> Standard race results with finishing positions and times</li>
+                                            <li><strong>Lap Times Files:</strong> Individual lap data exports (automatically extracts best times)</li>
                                         </ul>
-                                        <p className="text-sm italic opacity-80">
-                                            These columns must be visible in your results view before exporting to CSV for all sorting options to be available.
+                                        
+                                        <p className="font-semibold">Recommended Columns for Results Files:</p>
+                                        <ul className="list-disc pl-5 space-y-1">
+                                            <li><strong>Essential:</strong> Driver/Name, Number, Class</li>
+                                            <li><strong>For time sorting:</strong> Best Tm, 2nd Best</li>
+                                            <li><strong>For points sorting:</strong> Points</li>
+                                            <li><strong>For position sorting:</strong> Pos (finishing position)</li>
+                                            <li><strong>For advanced tie-breaking:</strong> PIC (Position in Class)</li>
+                                        </ul>
+                                        <p className="text-sm italic opacity-80 mt-2">
+                                            Configure your results view to include these columns before exporting to CSV for full functionality.
                                         </p>
                                     </div>
                                 </AccordionContent>
@@ -1356,18 +1440,35 @@ const GridBuilder = () => {
                                 </CardHeader>
                                 <CardContent>
                                     <div className="space-y-2">
-                                        {uploadedFiles.map((file, idx) => (
-                                            <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                                <span className="font-medium">{file.name}</span>
-                                                <Button 
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => removeFile(idx)}
-                                                >
-                                                    <X className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        ))}
+                                        {uploadedFiles.map((file, idx) => {
+                                            const warnings = fileWarnings.get(file.name) || [];
+                                            return (
+                                                <div key={idx} className="space-y-2">
+                                                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                                        <div className="flex-1">
+                                                            <span className="font-medium">{file.name}</span>
+                                                            {warnings.length > 0 && (
+                                                                <div className="mt-2 space-y-1">
+                                                                    {warnings.map((warning, wIdx) => (
+                                                                        <div key={wIdx} className="flex items-start gap-2 text-sm text-yellow-600">
+                                                                            <AlertCircle className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                                                                            <span>{warning}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <Button 
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => removeFile(idx)}
+                                                        >
+                                                            <X className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </CardContent>
                             </Card>
@@ -2282,11 +2383,19 @@ const GridBuilder = () => {
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent>
-                                        <p className="mb-3">Import your race data from CSV files. Supports multiple file formats with Driver, Car Number, Class, and timing information.</p>
+                                        <p className="mb-3">Import race data from CSV exports of Lap Times or Results files. The system automatically detects file types and consolidates data across multiple events.</p>
                                         <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
-                                            <li>Drag & drop or click to upload</li>
-                                            <li>Multiple files supported</li>
-                                            <li>Automatic format detection</li>
+                                            <li>Drag & drop or click to upload CSV files</li>
+                                            <li>Supports both Results and Lap Times exports</li>
+                                            <li>Multiple files automatically consolidated</li>
+                                            <li>Column warnings help identify missing data</li>
+                                        </ul>
+                                        <p className="mt-3 text-sm font-medium">For best results, include these columns:</p>
+                                        <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
+                                            <li>Driver/Name, Number, Class (required)</li>
+                                            <li>Best Tm, 2nd Best (for time sorting)</li>
+                                            <li>Points (for points-based sorting)</li>
+                                            <li>Pos, PIC (for position sorting & tie-breaking)</li>
                                         </ul>
                                     </CardContent>
                                 </Card>
@@ -2302,6 +2411,7 @@ const GridBuilder = () => {
                                         <p className="mb-3">Choose how many starting groups you need (1-10 waves). More waves create smaller, more competitive groups.</p>
                                         <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
                                             <li>Slider or input selection</li>
+                                            <li>Optional wave spacing (empty positions)</li>
                                             <li>Consider track capacity</li>
                                             <li>Balance competition levels</li>
                                         </ul>
@@ -2319,8 +2429,10 @@ const GridBuilder = () => {
                                         <p className="mb-3">Set up each wave's start type, assign classes, choose sorting criteria, and configure grid order options.</p>
                                         <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
                                             <li>Flying vs Standing starts</li>
-                                            <li>Class assignments</li>
-                                            <li>Sort by position, time, or points</li>
+                                            <li>Class assignments with "Assign All" option</li>
+                                            <li>Dynamic sorting: position, time, points</li>
+                                            <li>Advanced tie-breaking for points sorting</li>
+                                            <li>Group by class options</li>
                                             <li>Inversion options</li>
                                         </ul>
                                     </CardContent>
@@ -2334,11 +2446,14 @@ const GridBuilder = () => {
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent>
-                                        <p className="mb-3">Fine-tune your grid with manual adjustments. Drag & drop drivers, move entire classes, merge waves, or reset changes.</p>
+                                        <p className="mb-3">Fine-tune your grid with manual adjustments. View enhanced driver statistics and identify tied positions.</p>
                                         <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
                                             <li>Drag & drop reordering</li>
+                                            <li>Enhanced driver stats display</li>
+                                            <li>Tie indicators (yellow dots)</li>
                                             <li>Class movement controls</li>
                                             <li>Wave merge & reset options</li>
+                                            <li>Quick position buttons</li>
                                         </ul>
                                     </CardContent>
                                 </Card>
@@ -2365,15 +2480,45 @@ const GridBuilder = () => {
                                 </CardContent>
                             </Card>
 
+                            <Card className="bg-gradient-to-r from-track-blue/10 to-track-blue/20 border-track-blue">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Settings className="h-5 w-5" />
+                                        Advanced Features
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <h4 className="font-semibold text-sm mb-1">Multi-File Data Consolidation</h4>
+                                            <p className="text-sm text-gray-600">Upload multiple events to combine driver statistics across sessions.</p>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-semibold text-sm mb-1">Lap Times Support</h4>
+                                            <p className="text-sm text-gray-600">Automatic detection and processing of Orbits lap times exports.</p>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-semibold text-sm mb-1">Advanced Tie-Breaking</h4>
+                                            <p className="text-sm text-gray-600">3-level cascading tie-breakers for points-based sorting with multiple criteria.</p>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-semibold text-sm mb-1">Enhanced Grid Display</h4>
+                                            <p className="text-sm text-gray-600">Comprehensive driver stats, PIC tracking, and visual tie indicators.</p>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
                             <Alert className="bg-caution-yellow/10 border-caution-yellow">
                                 <Info className="h-4 w-4" />
                                 <AlertTitle>Pro Tips</AlertTitle>
                                 <AlertDescription>
                                     <ul className="list-disc pl-5 space-y-1 mt-2">
-                                        <li><strong>Plan Your Waves:</strong> Consider track capacity, safety, and competitive balance</li>
+                                        <li><strong>Data Preparation:</strong> Include Best Tm, Points, PIC columns for full functionality</li>
+                                        <li><strong>Multi-File Support:</strong> Upload multiple events to consolidate driver statistics</li>
+                                        <li><strong>Tie-Breaking:</strong> Configure cascading tie-breakers for points-based sorting</li>
+                                        <li><strong>Column Warnings:</strong> Check file warnings to ensure all features are available</li>
                                         <li><strong>Class Ordering:</strong> Use fastest/slowest class first for different race dynamics</li>
-                                        <li><strong>Inversion Strategy:</strong> Mix up the field to create closer racing</li>
-                                        <li><strong>Data Quality:</strong> Ensure CSV files have consistent formatting and class names</li>
                                     </ul>
                                 </AlertDescription>
                             </Alert>
