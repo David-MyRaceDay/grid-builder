@@ -17,34 +17,34 @@ import {
   File,
   HelpCircle,
   AlertCircle,
-  Info
+  Info,
+  Settings,
+  Eye
 } from 'lucide-react';
 
 // UI Components
 import { Button } from './components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Input } from './components/ui/input';
 import { Label } from './components/ui/label';
-import { Checkbox } from './components/ui/checkbox';
-import { RadioGroup, RadioGroupItem } from './components/ui/radio-group';
 import { Select } from './components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from './components/ui/alert';
 import { Badge } from './components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './components/ui/accordion';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './components/ui/dialog';
 import { cn } from './lib/utils';
 
 // Import SVG icons
 import racingFlag from './assets/racing-flag.svg';
 import minus3Icon from './assets/minus_3.svg';
 import minus1Icon from './assets/minus_1.svg';
-import plus1Icon from './assets/plus_1.svg';
-import plus3Icon from './assets/plus_3.svg';
 
 const GridBuilder = () => {
     const [currentStep, setCurrentStep] = useState(1);
     const [uploadedFiles, setUploadedFiles] = useState([]);
     const [parsedData, setParsedData] = useState([]);
     const [waveCount, setWaveCount] = useState(1);
+    const [defaultWaveSpacing, setDefaultWaveSpacing] = useState(0);
     const [waveConfigs, setWaveConfigs] = useState([]);
     const [finalGrid, setFinalGrid] = useState([]);
     const [originalGrid, setOriginalGrid] = useState([]);
@@ -54,25 +54,152 @@ const GridBuilder = () => {
     const [draggedOver, setDraggedOver] = useState(null);
     const [parseError, setParseError] = useState('');
     const [hasValidData, setHasValidData] = useState(true);
-    const moveTimeoutRef = useRef(null);
     const isMovingRef = useRef(false);
-    const lastMoveRef = useRef('');
     const [showTips, setShowTips] = useState(false);
+    const [showHelpModal, setShowHelpModal] = useState(false);
     
     const steps = [
         { num: 1, label: 'Upload Files', icon: Upload },
         { num: 2, label: 'Set Waves', icon: Flag },
-        { num: 3, label: 'Configure', icon: FileText },
-        { num: 4, label: 'Review', icon: RefreshCw },
-        { num: 5, label: 'Export', icon: Download },
-        { num: 6, label: 'Help', icon: HelpCircle }
+        { num: 3, label: 'Configure', icon: Settings },
+        { num: 4, label: 'Review', icon: Eye },
+        { num: 5, label: 'Export', icon: Download }
     ];
     
+    const parseLaptimesCSV = (content, fileName) => {
+        const lines = content.split('\n').map(line => line.trim()).filter(line => line);
+        
+        // Check if this is a laptimes file by looking for the specific header
+        if (!lines[0] || !lines[0].includes('Time of Day') || !lines[0].includes('Lap Tm')) {
+            return null; // Not a laptimes file
+        }
+        
+        const results = [];
+        let currentDriver = null;
+        let bestLapTime = null;
+        let bestSpeed = null;
+        let secondBestLapTime = null;
+        let secondBestSpeed = null;
+        
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i];
+            
+            // Check if this line is a driver info line (contains " - " pattern)
+            if (line.includes(' - ') && !line.startsWith('"')) {
+                // Save previous driver if exists
+                if (currentDriver && bestLapTime) {
+                    results.push({
+                        'No.': currentDriver.number,
+                        'Name': currentDriver.name,
+                        'Class': currentDriver.class,
+                        'Best Tm': bestLapTime,
+                        'Best Speed': bestSpeed || '',
+                        '2nd Best': secondBestLapTime || '',
+                        '2nd Spd': secondBestSpeed || '',
+                        'Driver': currentDriver.name,
+                        'Number': currentDriver.number
+                    });
+                }
+                
+                // Parse new driver info: "181 - Ryan Sotak - TT4"
+                const parts = line.split(' - ');
+                if (parts.length >= 3) {
+                    currentDriver = {
+                        number: parts[0].trim(),
+                        name: parts[1].trim(),
+                        class: parts[2].trim()
+                    };
+                    bestLapTime = null;
+                    bestSpeed = null;
+                    secondBestLapTime = null;
+                    secondBestSpeed = null;
+                }
+            } else if (currentDriver && line.startsWith('"')) {
+                // This is lap data, parse it
+                try {
+                    const lapData = Papa.parse(line, { header: false }).data[0];
+                    if (lapData && lapData.length >= 4) {
+                        const lapTime = lapData[2]; // "Lap Tm" column
+                        const speed = lapData[3]; // "Speed" column
+                        
+                        if (lapTime && lapTime !== 'Lap Tm') {
+                            // Convert lap time to seconds for comparison
+                            const timeInSeconds = parseTimeToSeconds(lapTime);
+                            const currentBestInSeconds = bestLapTime ? parseTimeToSeconds(bestLapTime) : Infinity;
+                            const current2ndBestInSeconds = secondBestLapTime ? parseTimeToSeconds(secondBestLapTime) : Infinity;
+                            
+                            if (timeInSeconds < currentBestInSeconds) {
+                                // This is a new best time, move current best to 2nd best
+                                secondBestLapTime = bestLapTime;
+                                secondBestSpeed = bestSpeed;
+                                bestLapTime = lapTime;
+                                bestSpeed = speed;
+                            } else if (timeInSeconds < current2ndBestInSeconds && timeInSeconds > currentBestInSeconds) {
+                                // This is a new 2nd best time
+                                secondBestLapTime = lapTime;
+                                secondBestSpeed = speed;
+                            }
+                        }
+                    }
+                } catch (e) {
+                    // Skip invalid lap data lines
+                    continue;
+                }
+            }
+        }
+        
+        // Don't forget the last driver
+        if (currentDriver && bestLapTime) {
+            results.push({
+                'No.': currentDriver.number,
+                'Name': currentDriver.name,
+                'Class': currentDriver.class,
+                'Best Tm': bestLapTime,
+                'Best Speed': bestSpeed || '',
+                '2nd Best': secondBestLapTime || '',
+                '2nd Spd': secondBestSpeed || '',
+                'Driver': currentDriver.name,
+                'Number': currentDriver.number
+            });
+        }
+        
+        return results;
+    };
+    
+    const parseTimeToSeconds = (timeStr) => {
+        if (!timeStr || typeof timeStr !== 'string') return Infinity;
+        
+        // Handle formats like "2:00.295" or "1:23.456"
+        const parts = timeStr.split(':');
+        if (parts.length === 2) {
+            const minutes = parseInt(parts[0]) || 0;
+            const secondsParts = parts[1].split('.');
+            const seconds = parseInt(secondsParts[0]) || 0;
+            const milliseconds = parseInt(secondsParts[1]) || 0;
+            return minutes * 60 + seconds + milliseconds / 1000;
+        }
+        
+        return Infinity;
+    };
+
     const parseCSV = (file) => {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => {
-                Papa.parse(e.target.result, {
+                const content = e.target.result;
+                
+                // First, try to parse as laptimes format
+                const laptimesData = parseLaptimesCSV(content, file.name);
+                if (laptimesData && laptimesData.length > 0) {
+                    resolve({
+                        fileName: file.name,
+                        data: laptimesData
+                    });
+                    return;
+                }
+                
+                // If not laptimes format, parse as regular CSV
+                Papa.parse(content, {
                     header: true,
                     dynamicTyping: true,
                     skipEmptyLines: true,
@@ -110,6 +237,129 @@ const GridBuilder = () => {
         });
     };
     
+    const consolidateDriverData = (allParsedFiles) => {
+        const driverMap = new Map();
+        
+        allParsedFiles.forEach((parsedFile, fileIndex) => {
+            parsedFile.data.forEach(entry => {
+                // Get driver identifier (prefer number, fallback to name)
+                const driverKey = entry['No.'] || entry.Number || entry['Car'] || entry.Name || entry.Driver || `unknown_${fileIndex}_${Math.random()}`;
+                const driverName = entry.Name || entry.Driver || entry.DriverName || entry.Pilot || '';
+                const driverNumber = entry['No.'] || entry.Number || entry['Car'] || entry['#'] || entry.Num || '';
+                const driverClass = entry.Class || entry.class || entry.CLASS || '';
+                
+                if (!driverMap.has(driverKey)) {
+                    driverMap.set(driverKey, {
+                        driverKey,
+                        name: driverName,
+                        number: driverNumber,
+                        class: driverClass,
+                        files: [],
+                        allTimes: [],
+                        bestOverallTime: null,
+                        secondBestOverallTime: null,
+                        totalPoints: 0,
+                        averagePoints: 0,
+                        fileCount: 0,
+                        allPositions: [],
+                        bestPosition: null,
+                        averagePosition: null,
+                        allPositionsInClass: [],
+                        bestPositionInClass: null,
+                        averagePositionInClass: null
+                    });
+                }
+                
+                const driver = driverMap.get(driverKey);
+                
+                // Extract times, points, and positions from this file entry
+                const fileData = {
+                    fileName: parsedFile.fileName,
+                    fileIndex,
+                    bestTime: entry['Best Tm'] || entry.BestTime || entry.Time || null,
+                    secondBestTime: entry['2nd Best'] || entry.SecondBest || null,
+                    bestSpeed: entry['Best Speed'] || entry.BestSpeed || entry.Speed || null,
+                    secondBestSpeed: entry['2nd Spd'] || entry.SecondSpeed || null,
+                    points: parseFloat(entry.Points || entry.points || entry.POINTS || 0) || 0,
+                    position: entry.Pos || entry.Position || entry.Finish || null,
+                    positionInClass: entry.PIC || entry.PositionInClass || entry.ClassPosition || null
+                };
+                
+                driver.files.push(fileData);
+                driver.fileCount++;
+                
+                // Add times to the all times array
+                if (fileData.bestTime) {
+                    driver.allTimes.push({
+                        time: fileData.bestTime,
+                        speed: fileData.bestSpeed,
+                        fileName: parsedFile.fileName,
+                        type: 'best'
+                    });
+                }
+                
+                if (fileData.secondBestTime) {
+                    driver.allTimes.push({
+                        time: fileData.secondBestTime,
+                        speed: fileData.secondBestSpeed,
+                        fileName: parsedFile.fileName,
+                        type: 'second'
+                    });
+                }
+                
+                // Update points totals
+                driver.totalPoints += fileData.points;
+                
+                // Collect position data
+                if (fileData.position && !isNaN(parseInt(fileData.position))) {
+                    driver.allPositions.push({
+                        position: parseInt(fileData.position),
+                        fileName: parsedFile.fileName
+                    });
+                }
+                
+                if (fileData.positionInClass && !isNaN(parseInt(fileData.positionInClass))) {
+                    driver.allPositionsInClass.push({
+                        position: parseInt(fileData.positionInClass),
+                        fileName: parsedFile.fileName
+                    });
+                }
+            });
+        });
+        
+        // Calculate overall best and second best times and positions for each driver
+        driverMap.forEach(driver => {
+            if (driver.fileCount > 0) {
+                driver.averagePoints = driver.totalPoints / driver.fileCount;
+            }
+            
+            if (driver.allTimes.length > 0) {
+                // Sort all times by speed (convert to seconds)
+                driver.allTimes.sort((a, b) => parseTimeToSeconds(a.time) - parseTimeToSeconds(b.time));
+                
+                driver.bestOverallTime = driver.allTimes[0];
+                driver.secondBestOverallTime = driver.allTimes.length > 1 ? driver.allTimes[1] : null;
+            }
+            
+            // Calculate position statistics
+            if (driver.allPositions.length > 0) {
+                driver.allPositions.sort((a, b) => a.position - b.position);
+                driver.bestPosition = driver.allPositions[0].position;
+                const avgPos = driver.allPositions.reduce((sum, p) => sum + p.position, 0) / driver.allPositions.length;
+                driver.averagePosition = Math.round(avgPos * 100) / 100; // Round to 2 decimals
+            }
+            
+            if (driver.allPositionsInClass.length > 0) {
+                driver.allPositionsInClass.sort((a, b) => a.position - b.position);
+                driver.bestPositionInClass = driver.allPositionsInClass[0].position;
+                const avgPIC = driver.allPositionsInClass.reduce((sum, p) => sum + p.position, 0) / driver.allPositionsInClass.length;
+                driver.averagePositionInClass = Math.round(avgPIC * 100) / 100; // Round to 2 decimals
+            }
+        });
+        
+        return Array.from(driverMap.values());
+    };
+
     const handleFileUpload = async (files) => {
         setParseError('');
         
@@ -117,8 +367,19 @@ const GridBuilder = () => {
         const csvFiles = fileArray.filter(f => f.name.endsWith('.csv'));
         
         try {
-            const parsed = await Promise.all(csvFiles.map(parseCSV));
-            setParsedData(prev => [...prev, ...parsed]);
+            const newParsed = await Promise.all(csvFiles.map(parseCSV));
+            const allParsedFiles = [...parsedData.map(d => d.originalFile || d), ...newParsed];
+            
+            // Consolidate driver data across all files
+            const consolidatedData = consolidateDriverData(allParsedFiles);
+            
+            // Store both consolidated data and original files for reference
+            const dataWithOriginals = consolidatedData.map(driver => ({
+                ...driver,
+                originalFiles: allParsedFiles
+            }));
+            
+            setParsedData(dataWithOriginals);
             setUploadedFiles(prev => [...prev, ...csvFiles]);
             setHasValidData(true);
         } catch (error) {
@@ -167,42 +428,39 @@ const GridBuilder = () => {
     
     const extractClasses = () => {
         const classSet = new Set();
-        const classVariations = ['Class', 'class', 'CLASS', 'Класс'];
         
-        parsedData.forEach(file => {
-            file.data.forEach(row => {
-                const classValue = normalizeFieldName(row, classVariations);
-                if (classValue) {
-                    classSet.add(classValue);
-                }
-            });
+        // With the new consolidated data structure, parsedData is now an array of drivers
+        parsedData.forEach(driver => {
+            if (driver.class && driver.class.trim() !== '') {
+                classSet.add(driver.class);
+            }
         });
+        
         return Array.from(classSet).filter(c => c && c.trim() !== '');
     };
     
     const hasSecondBestTimes = () => {
-        const secondTimeVariations = ['2nd Best', 'SecondBest', 'Second Best', 'Time2', '2nd'];
-        
-        return parsedData.some(file => {
-            if (!file.data || file.data.length === 0) return false;
-            
-            const headers = Object.keys(file.data[0] || {});
-            return secondTimeVariations.some(variation => headers.includes(variation));
-        });
+        return parsedData.some(driver => 
+            driver.secondBestOverallTime || 
+            driver.files.some(file => file.secondBestTime)
+        );
     };
     
     const hasValidPoints = () => {
-        const pointsVariations = ['Points', 'Pts', 'Score'];
-        
-        return parsedData.some(file => {
-            if (!file.data || file.data.length === 0) return false;
-            
-            return file.data.some(row => {
-                const pointsValue = normalizeFieldName(row, pointsVariations);
-                const points = parseInt(pointsValue) || 0;
-                return points > 0;
-            });
-        });
+        return parsedData.some(driver => 
+            driver.totalPoints > 0 || 
+            driver.files.some(file => file.points > 0)
+        );
+    };
+    
+    const hasMultipleFiles = () => {
+        return uploadedFiles.length > 1;
+    };
+    
+    const hasPositionData = () => {
+        return parsedData.some(driver => 
+            driver.files.some(file => file.position)
+        );
     };
     
     const initializeWaveConfigs = () => {
@@ -214,12 +472,15 @@ const GridBuilder = () => {
                 waveNumber: i + 1,
                 startType: canHaveFlying ? 'flying' : 'standing',
                 classes: [],
-                sortBy: 'position',
+                sortBy: 'bestTime',
                 gridOrder: 'straight',
                 inverted: false,
                 invertAll: false,
                 invertCount: 2,
-                emptyPositions: 0
+                emptyPositions: i < waveCount - 1 ? defaultWaveSpacing : 0,
+                tieBreaker1: 'bestTime',
+                tieBreaker2: 'bestPositionInClass',
+                tieBreaker3: 'alphabetical'
             });
             
             if (configs[i].startType === 'standing') {
@@ -244,6 +505,92 @@ const GridBuilder = () => {
         });
     };
     
+    // Helper function to evaluate tie-breaking criteria
+    const evaluateTieBreaker = (driver, criterion) => {
+        switch (criterion) {
+            case 'bestTime':
+                return driver.bestOverallTime ? parseTimeToSeconds(driver.bestOverallTime.time) : 999999;
+            case 'secondBest':
+                return driver.secondBestOverallTime ? parseTimeToSeconds(driver.secondBestOverallTime.time) : 999999;
+            case 'bestPositionInClass':
+                return driver.bestPositionInClass || 999;
+            case 'bestPosition':
+                return driver.bestPosition || 999;
+            case 'alphabetical':
+                return driver.name ? driver.name.toLowerCase() : 'zzz';
+            case 'manual':
+                return 0; // Manual tie-breaking will be handled on review screen
+            default:
+                return 0;
+        }
+    };
+    
+    // Helper function to apply cascading tie-breakers
+    const applyCascadingTieBreakers = (driverA, driverB, tieBreakers) => {
+        for (const tieBreaker of tieBreakers) {
+            const valueA = evaluateTieBreaker(driverA, tieBreaker);
+            const valueB = evaluateTieBreaker(driverB, tieBreaker);
+            
+            if (tieBreaker === 'alphabetical') {
+                // For alphabetical, use string comparison
+                if (valueA < valueB) return -1;
+                if (valueA > valueB) return 1;
+            } else {
+                // For numeric values (times, positions), lower is better
+                if (valueA < valueB) return -1;
+                if (valueA > valueB) return 1;
+            }
+            // If values are equal, continue to next tie-breaker
+        }
+        return 0; // All tie-breakers are equal
+    };
+    
+    // Helper function to detect ties in sorting criteria
+    const detectTies = (entries, config) => {
+        const tiedGroups = new Map();
+        
+        entries.forEach((entry, index) => {
+            if (!entry.originalDriver) return;
+            
+            let primaryValue;
+            switch (config.sortBy) {
+                case 'pointsTotal':
+                    primaryValue = entry.originalDriver.totalPoints;
+                    break;
+                case 'pointsAverage':
+                    primaryValue = entry.originalDriver.averagePoints;
+                    break;
+                case 'bestTime':
+                    primaryValue = entry.originalDriver.bestOverallTime ? parseTimeToSeconds(entry.originalDriver.bestOverallTime.time) : 999999;
+                    break;
+                case 'secondBest':
+                    primaryValue = entry.originalDriver.secondBestOverallTime ? parseTimeToSeconds(entry.originalDriver.secondBestOverallTime.time) : 999999;
+                    break;
+                case 'position':
+                    primaryValue = entry.originalDriver.files[0]?.position ? parseInt(entry.originalDriver.files[0].position) : 999;
+                    break;
+                default:
+                    return;
+            }
+            
+            const valueKey = primaryValue.toString();
+            if (!tiedGroups.has(valueKey)) {
+                tiedGroups.set(valueKey, []);
+            }
+            tiedGroups.get(valueKey).push(index);
+        });
+        
+        // Filter out groups with only one entry (no ties)
+        const tiedIndices = new Set();
+        tiedGroups.forEach(group => {
+            if (group.length > 1) {
+                group.forEach(index => tiedIndices.add(index));
+            }
+        });
+        
+        return tiedIndices;
+    };
+
     const buildGrid = () => {
         if (!parsedData || parsedData.length === 0) {
             setParseError('No valid CSV files have been uploaded. Please upload valid race data files.');
@@ -251,19 +598,10 @@ const GridBuilder = () => {
             return;
         }
         
-        let totalEntries = 0;
-        const classVariations = ['Class', 'class', 'CLASS', 'Класс'];
+        // Check for valid entries with classes in the new consolidated data structure
+        const validDrivers = parsedData.filter(driver => driver.class && driver.class.trim() !== '');
         
-        parsedData.forEach(file => {
-            file.data.forEach(row => {
-                const classValue = normalizeFieldName(row, classVariations);
-                if (classValue && classValue.trim() !== '') {
-                    totalEntries++;
-                }
-            });
-        });
-        
-        if (totalEntries === 0) {
+        if (validDrivers.length === 0) {
             setParseError('No valid race entries found in the uploaded files. Please ensure your CSV files contain proper race data with Class, Driver, and Number columns.');
             setCurrentStep(1);
             return;
@@ -301,86 +639,68 @@ const GridBuilder = () => {
         };
         
         waveConfigs.forEach(config => {
-            const waveDataMap = new Map();
+            // Get drivers for this wave based on assigned classes
+            const waveDrivers = validDrivers.filter(driver => 
+                config.classes.includes(driver.class)
+            );
             
-            parsedData.forEach(file => {
-                file.data.forEach(row => {
-                    const rowClass = normalizeFieldName(row, classVariations);
-                    if (config.classes.includes(rowClass)) {
-                        const normalizedRow = {
-                            Class: rowClass,
-                            Number: normalizeFieldName(row, numberVariations),
-                            Driver: normalizeFieldName(row, driverVariations),
-                            Position: normalizeFieldName(row, positionVariations),
-                            BestTime: normalizeFieldName(row, bestTimeVariations),
-                            SecondBest: normalizeFieldName(row, secondTimeVariations),
-                            Points: normalizeFieldName(row, pointsVariations),
-                            source: file.fileName,
-                            originalRow: row
-                        };
-                        
-                        const driverKey = normalizedRow.Driver ? normalizedRow.Driver.trim().toLowerCase() : null;
-                        
-                        if (driverKey) {
-                            const existing = waveDataMap.get(driverKey);
-                            
-                            if (!existing) {
-                                waveDataMap.set(driverKey, normalizedRow);
-                            } else {
-                                let existingTime, newTime;
-                                
-                                if (config.sortBy === 'secondBest') {
-                                    existingTime = parseTime(existing.SecondBest);
-                                    newTime = parseTime(normalizedRow.SecondBest);
-                                } else {
-                                    existingTime = parseTime(existing.BestTime);
-                                    newTime = parseTime(normalizedRow.BestTime);
-                                }
-                                
-                                if (newTime < existingTime) {
-                                    waveDataMap.set(driverKey, normalizedRow);
-                                } else if (newTime === existingTime) {
-                                    const existingPos = parseInt(existing.Position) || 999;
-                                    const newPos = parseInt(normalizedRow.Position) || 999;
-                                    
-                                    if (newPos < existingPos) {
-                                        waveDataMap.set(driverKey, normalizedRow);
-                                    } else if (newPos === existingPos) {
-                                        const existingPts = parseInt(existing.Points) || 0;
-                                        const newPts = parseInt(normalizedRow.Points) || 0;
-                                        
-                                        if (newPts > existingPts) {
-                                            waveDataMap.set(driverKey, normalizedRow);
-                                        }
-                                    }
-                                }
-                            }
-                        } else if (normalizedRow.Number) {
-                            const carKey = `car_${normalizedRow.Number}`;
-                            if (!waveDataMap.has(carKey)) {
-                                waveDataMap.set(carKey, normalizedRow);
-                            }
-                        }
-                    }
-                });
-            });
+            // Convert to grid entry format
+            const waveData = waveDrivers.map(driver => ({
+                Class: driver.class,
+                Number: driver.number || '',
+                Driver: driver.name || '',
+                BestTime: driver.bestOverallTime ? driver.bestOverallTime.time : '',
+                SecondBest: driver.secondBestOverallTime ? driver.secondBestOverallTime.time : '',
+                Points: driver.totalPoints || 0,
+                source: driver.files.map(f => f.fileName).join(', '),
+                originalDriver: driver
+            }));
             
-            const waveData = Array.from(waveDataMap.values());
-            
+            // Sort drivers based on the sortBy configuration
             waveData.sort((a, b) => {
+                const driverA = a.originalDriver;
+                const driverB = b.originalDriver;
+                
                 switch (config.sortBy) {
                     case 'position':
-                        const posA = parseInt(a.Position) || 999;
-                        const posB = parseInt(b.Position) || 999;
+                        // Only available for single file uploads
+                        const posA = driverA.files[0]?.position ? parseInt(driverA.files[0].position) : 999;
+                        const posB = driverB.files[0]?.position ? parseInt(driverB.files[0].position) : 999;
                         return posA - posB;
+                        
                     case 'bestTime':
-                        return parseTime(a.BestTime) - parseTime(b.BestTime);
+                        const timeA = driverA.bestOverallTime ? parseTimeToSeconds(driverA.bestOverallTime.time) : 999999;
+                        const timeB = driverB.bestOverallTime ? parseTimeToSeconds(driverB.bestOverallTime.time) : 999999;
+                        return timeA - timeB;
+                        
                     case 'secondBest':
-                        return parseTime(a.SecondBest) - parseTime(b.SecondBest);
-                    case 'points':
-                        const ptsA = parseInt(a.Points) || 0;
-                        const ptsB = parseInt(b.Points) || 0;
-                        return ptsB - ptsA;
+                        const secondA = driverA.secondBestOverallTime ? parseTimeToSeconds(driverA.secondBestOverallTime.time) : 999999;
+                        const secondB = driverB.secondBestOverallTime ? parseTimeToSeconds(driverB.secondBestOverallTime.time) : 999999;
+                        return secondA - secondB;
+                        
+                    case 'pointsTotal':
+                        const totalPointsDiff = driverB.totalPoints - driverA.totalPoints; // Higher points first
+                        if (totalPointsDiff !== 0) return totalPointsDiff;
+                        // Apply tie-breakers if points are equal
+                        return applyCascadingTieBreakers(driverA, driverB, [config.tieBreaker1, config.tieBreaker2, config.tieBreaker3]);
+                        
+                    case 'pointsAverage':
+                        const avgPointsDiff = driverB.averagePoints - driverA.averagePoints; // Higher average first
+                        if (avgPointsDiff !== 0) return avgPointsDiff;
+                        // Apply tie-breakers if averages are equal
+                        return applyCascadingTieBreakers(driverA, driverB, [config.tieBreaker1, config.tieBreaker2, config.tieBreaker3]);
+                        
+                    case 'bestSecondBest':
+                        // Find the best second-best time across all files for each driver
+                        const bestSecondA = driverA.allTimes.filter(t => t.type === 'second')
+                            .sort((t1, t2) => parseTimeToSeconds(t1.time) - parseTimeToSeconds(t2.time))[0];
+                        const bestSecondB = driverB.allTimes.filter(t => t.type === 'second')
+                            .sort((t1, t2) => parseTimeToSeconds(t1.time) - parseTimeToSeconds(t2.time))[0];
+                        
+                        const bestSecondTimeA = bestSecondA ? parseTimeToSeconds(bestSecondA.time) : 999999;
+                        const bestSecondTimeB = bestSecondB ? parseTimeToSeconds(bestSecondB.time) : 999999;
+                        return bestSecondTimeA - bestSecondTimeB;
+                        
                     default:
                         return 0;
                 }
@@ -468,6 +788,7 @@ const GridBuilder = () => {
         setUploadedFiles([]);
         setParsedData([]);
         setWaveCount(1);
+        setDefaultWaveSpacing(0);
         setWaveConfigs([]);
         setFinalGrid([]);
         setOriginalGrid([]);
@@ -705,9 +1026,12 @@ const GridBuilder = () => {
             
             const sortLabels = {
                 'position': 'Finishing Position',
-                'bestTime': 'Best Time',
-                'secondBest': 'Second Best Time',
-                'points': 'Points'
+                'bestTime': 'Best Overall Time',
+                'secondBest': 'Second Best Overall Time',
+                'pointsTotal': 'Total Points',
+                'pointsAverage': 'Average Points',
+                'bestSecondBest': 'Best Second-Best Time',
+                'points': 'Points' // Fallback for old format
             };
             descriptions.push(`Sorted by ${sortLabels[config.sortBy] || 'Unknown'}`);
             
@@ -823,9 +1147,12 @@ const GridBuilder = () => {
             
             const sortLabels = {
                 'position': 'Finishing Position',
-                'bestTime': 'Best Time',
-                'secondBest': 'Second Best Time',
-                'points': 'Points'
+                'bestTime': 'Best Overall Time',
+                'secondBest': 'Second Best Overall Time',
+                'pointsTotal': 'Total Points',
+                'pointsAverage': 'Average Points',
+                'bestSecondBest': 'Best Second-Best Time',
+                'points': 'Points' // Fallback for old format
             };
             descriptions.push(`Sorted by ${sortLabels[config.sortBy] || 'Unknown'}`);
             
@@ -1066,7 +1393,7 @@ const GridBuilder = () => {
                             <CardHeader>
                                 <CardTitle>Configure Wave Structure</CardTitle>
                                 <CardDescription>
-                                    Choose how many starting groups you need for your race
+                                    Choose how many starting groups you need and configure spacing between waves
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -1083,6 +1410,23 @@ const GridBuilder = () => {
                                             className="w-32"
                                         />
                                     </div>
+                                    {waveCount > 1 && (
+                                        <div>
+                                            <Label htmlFor="wave-spacing">Default Spaces Between Waves</Label>
+                                            <Input
+                                                id="wave-spacing"
+                                                type="number"
+                                                min="0"
+                                                max="10"
+                                                value={defaultWaveSpacing}
+                                                onChange={(e) => setDefaultWaveSpacing(parseInt(e.target.value) || 0)}
+                                                className="w-32"
+                                            />
+                                            <p className="text-sm text-gray-600 mt-1">
+                                                Empty grid positions to leave between waves (can be customized per wave later)
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>
@@ -1163,15 +1507,18 @@ const GridBuilder = () => {
                                         <div>
                                             <div className="flex items-center justify-between mb-2">
                                                 <Label>Assign Classes</Label>
-                                                {waveConfigs.length === 1 && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="secondary"
-                                                        onClick={() => assignAllClassesToWave(idx)}
-                                                    >
-                                                        Assign All Classes
-                                                    </Button>
-                                                )}
+                                                {(() => {
+                                                    const availableClassesForWave = availableClasses.filter(cls => !assignedToOtherWaves.has(cls));
+                                                    return availableClassesForWave.length > config.classes.length && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="secondary"
+                                                            onClick={() => assignAllClassesToWave(idx)}
+                                                        >
+                                                            Assign All Classes
+                                                        </Button>
+                                                    );
+                                                })()}
                                             </div>
                                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                                                 {availableClasses.map(cls => {
@@ -1218,29 +1565,103 @@ const GridBuilder = () => {
                                             value={config.sortBy}
                                             onChange={(e) => updateWaveConfig(idx, 'sortBy', e.target.value)}
                                         >
-                                            <option value="position">Finishing Position</option>
-                                            <option value="bestTime">Best Time</option>
-                                            {hasSecondBestTimes() && (
-                                                <option value="secondBest">Second Best Time</option>
+                                            {/* Position Sorting (Single File Only) */}
+                                            {(!hasMultipleFiles() && hasPositionData()) && (
+                                                <option value="position">Finishing Position</option>
                                             )}
+                                            
+                                            {/* Time-Based Sorting */}
+                                            <option value="bestTime">Best Overall Time</option>
+                                            {hasSecondBestTimes() && (
+                                                <option value="secondBest">Second Best Overall Time</option>
+                                            )}
+                                            {hasSecondBestTimes() && (
+                                                <option value="bestSecondBest">Best Second-Best Time</option>
+                                            )}
+                                            
+                                            {/* Points-Based Sorting */}
                                             {hasValidPoints() && (
-                                                <option value="points">Points</option>
+                                                <option value="pointsTotal">Total Points</option>
+                                            )}
+                                            {hasValidPoints() && hasMultipleFiles() && (
+                                                <option value="pointsAverage">Average Points</option>
                                             )}
                                         </Select>
                                     </div>
                                     
                                     <div>
-                                        <Label htmlFor={`order-${idx}`}>Grid Order</Label>
+                                        <Label htmlFor={`order-${idx}`}>Group By</Label>
                                         <Select 
                                             id={`order-${idx}`}
                                             value={config.gridOrder}
                                             onChange={(e) => updateWaveConfig(idx, 'gridOrder', e.target.value)}
                                         >
-                                            <option value="straight">Straight Up</option>
-                                            <option value="fastestFirst">Fastest Class First</option>
-                                            <option value="slowestFirst">Slowest Class First</option>
+                                            <option value="straight">None - Straight Up</option>
+                                            <option value="fastestFirst">Class - Fastest First</option>
+                                            <option value="slowestFirst">Class - Slowest First</option>
                                         </Select>
                                     </div>
+                                    
+                                    {/* Tie-Breaking Options - Only show for points-based sorting */}
+                                    {(config.sortBy === 'pointsTotal' || config.sortBy === 'pointsAverage') && (
+                                        <div className="space-y-4 bg-gray-50 p-4 rounded-lg">
+                                            <Label className="text-sm font-semibold text-gray-700">Tie-Breaking Options</Label>
+                                            
+                                            <div>
+                                                <Label htmlFor={`tie1-${idx}`} className="text-sm">1st Tie-Breaker</Label>
+                                                <Select 
+                                                    id={`tie1-${idx}`}
+                                                    value={config.tieBreaker1}
+                                                    onChange={(e) => updateWaveConfig(idx, 'tieBreaker1', e.target.value)}
+                                                >
+                                                    <option value="bestTime">Best Overall Time</option>
+                                                    {hasSecondBestTimes() && (
+                                                        <option value="secondBest">Second Best Overall Time</option>
+                                                    )}
+                                                    <option value="bestPositionInClass">Best Position in Class</option>
+                                                    <option value="bestPosition">Best Overall Position</option>
+                                                    <option value="alphabetical">Alphabetical by Name</option>
+                                                    <option value="manual">Manual</option>
+                                                </Select>
+                                            </div>
+                                            
+                                            <div>
+                                                <Label htmlFor={`tie2-${idx}`} className="text-sm">2nd Tie-Breaker</Label>
+                                                <Select 
+                                                    id={`tie2-${idx}`}
+                                                    value={config.tieBreaker2}
+                                                    onChange={(e) => updateWaveConfig(idx, 'tieBreaker2', e.target.value)}
+                                                >
+                                                    <option value="bestTime">Best Overall Time</option>
+                                                    {hasSecondBestTimes() && (
+                                                        <option value="secondBest">Second Best Overall Time</option>
+                                                    )}
+                                                    <option value="bestPositionInClass">Best Position in Class</option>
+                                                    <option value="bestPosition">Best Overall Position</option>
+                                                    <option value="alphabetical">Alphabetical by Name</option>
+                                                    <option value="manual">Manual</option>
+                                                </Select>
+                                            </div>
+                                            
+                                            <div>
+                                                <Label htmlFor={`tie3-${idx}`} className="text-sm">3rd Tie-Breaker</Label>
+                                                <Select 
+                                                    id={`tie3-${idx}`}
+                                                    value={config.tieBreaker3}
+                                                    onChange={(e) => updateWaveConfig(idx, 'tieBreaker3', e.target.value)}
+                                                >
+                                                    <option value="bestTime">Best Overall Time</option>
+                                                    {hasSecondBestTimes() && (
+                                                        <option value="secondBest">Second Best Overall Time</option>
+                                                    )}
+                                                    <option value="bestPositionInClass">Best Position in Class</option>
+                                                    <option value="bestPosition">Best Overall Position</option>
+                                                    <option value="alphabetical">Alphabetical by Name</option>
+                                                    <option value="manual">Manual</option>
+                                                </Select>
+                                            </div>
+                                        </div>
+                                    )}
                                     
                                     <div className="space-y-4">
                                         <div className="flex items-center space-x-2">
@@ -1423,7 +1844,7 @@ const GridBuilder = () => {
                                                                 onClick={() => combineWithPreviousWave(waveIdx)}
                                                                 title="Combine with previous wave"
                                                             >
-                                                                <Merge className="h-4 w-4" />
+                                                                <Merge className="h-4 w-4" style={{color: '#1A1A1A'}} />
                                                             </Button>
                                                         )}
                                                         {isWaveModified(waveIdx) && (
@@ -1434,7 +1855,7 @@ const GridBuilder = () => {
                                                                 onClick={() => resetWave(waveIdx)}
                                                                 title="Reset wave to original order"
                                                             >
-                                                                <RefreshCw className="h-4 w-4" />
+                                                                <RefreshCw className="h-4 w-4" style={{color: '#1A1A1A'}} />
                                                             </Button>
                                                         )}
                                                     </div>
@@ -1466,7 +1887,7 @@ const GridBuilder = () => {
                                                                             }}
                                                                             title="Move class up"
                                                                         >
-                                                                            <ChevronUp className="h-4 w-4" />
+                                                                            <ChevronUp className="h-4 w-4 text-track-blue" />
                                                                         </Button>
                                                                     )}
                                                                     <span className="font-semibold text-track-blue">{className}</span>
@@ -1482,14 +1903,19 @@ const GridBuilder = () => {
                                                                             }}
                                                                             title="Move class down"
                                                                         >
-                                                                            <ChevronDown className="h-4 w-4" />
+                                                                            <ChevronDown className="h-4 w-4 text-track-blue" />
                                                                         </Button>
                                                                     )}
                                                                 </div>
                                                             );
                                                             
+                                                            // Detect ties within this class
+                                                            const classTies = detectTies(classEntries, wave.config);
+                                                            
                                                             classEntries.forEach((entry, entryIdx) => {
                                                                 const originalEntryIdx = waveEntries.indexOf(entry);
+                                                                const isTied = classTies.has(entryIdx);
+                                                                
                                                                 result.push(
                                                                     <div 
                                                                         key={`entry-${originalEntryIdx}`}
@@ -1503,14 +1929,56 @@ const GridBuilder = () => {
                                                                         onDrop={(e) => handleGridDrop(e, waveIdx, originalEntryIdx)}
                                                                     >
                                                                         <MoveVertical className="h-4 w-4 text-gray-400 mr-3" />
-                                                                        <div className="w-16 font-bold text-primary">{entry.gridPosition}</div>
-                                                                        <div className="flex-1 flex items-center gap-4">
-                                                                            <Badge variant="outline" className="bg-carbon-black text-white">
-                                                                                {entry.Number || '?'}
-                                                                            </Badge>
-                                                                            <span className="font-medium">{entry.Driver || 'Unknown Driver'}</span>
-                                                                            <Badge variant="secondary">{entry.Class || 'N/A'}</Badge>
-                                                                            <span className="text-gray-600 font-mono text-sm">{entry.BestTime || '--:--'}</span>
+                                                                        <div className="w-16 font-bold text-primary flex items-center gap-2">
+                                                                            {entry.gridPosition}
+                                                                            {isTied && (
+                                                                                <span 
+                                                                                    className="w-2 h-2 rounded-full bg-yellow-500" 
+                                                                                    title="Tied on primary sorting criteria"
+                                                                                />
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="flex-1">
+                                                                            {/* Main driver info row */}
+                                                                            <div className="flex items-center gap-4 mb-1">
+                                                                                <Badge variant="outline" className="bg-carbon-black text-white">
+                                                                                    {entry.Number || '?'}
+                                                                                </Badge>
+                                                                                <span className="font-medium">{entry.Driver || 'Unknown Driver'}</span>
+                                                                                <Badge variant="secondary">{entry.Class || 'N/A'}</Badge>
+                                                                                <span className="text-gray-600 font-mono text-sm">{entry.BestTime || '--:--'}</span>
+                                                                            </div>
+                                                                            
+                                                                            {/* Detailed statistics row */}
+                                                                            {entry.originalDriver && (
+                                                                                <div className="flex items-center gap-6 text-xs text-gray-500 ml-16">
+                                                                                    {entry.originalDriver.secondBestOverallTime && (
+                                                                                        <span className="font-mono">
+                                                                                            2nd Best: {entry.originalDriver.secondBestOverallTime.time}
+                                                                                        </span>
+                                                                                    )}
+                                                                                    {entry.originalDriver.totalPoints > 0 && (
+                                                                                        <span>
+                                                                                            Total Pts: {entry.originalDriver.totalPoints}
+                                                                                        </span>
+                                                                                    )}
+                                                                                    {entry.originalDriver.averagePoints > 0 && (
+                                                                                        <span>
+                                                                                            Avg Pts: {entry.originalDriver.averagePoints.toFixed(1)}
+                                                                                        </span>
+                                                                                    )}
+                                                                                    {entry.originalDriver.bestPositionInClass && (
+                                                                                        <span>
+                                                                                            Best PIC: {entry.originalDriver.bestPositionInClass}
+                                                                                        </span>
+                                                                                    )}
+                                                                                    {entry.originalDriver.averagePositionInClass && (
+                                                                                        <span>
+                                                                                            Avg PIC: {entry.originalDriver.averagePositionInClass}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
                                                                         </div>
                                                                         <div className="flex gap-2">
                                                                             <Button
@@ -1539,7 +2007,12 @@ const GridBuilder = () => {
                                                         
                                                         return result;
                                                     } else {
-                                                        return waveEntries.map((entry, entryIdx) => (
+                                                        // Detect ties for straight-up ordering
+                                                        const straightTies = detectTies(waveEntries, wave.config);
+                                                        
+                                                        return waveEntries.map((entry, entryIdx) => {
+                                                            const isTied = straightTies.has(entryIdx);
+                                                            return (
                                                             <div 
                                                                 key={entryIdx} 
                                                                 className={cn(
@@ -1552,14 +2025,56 @@ const GridBuilder = () => {
                                                                 onDrop={(e) => handleGridDrop(e, waveIdx, entryIdx)}
                                                             >
                                                                 <MoveVertical className="h-4 w-4 text-gray-400 mr-3" />
-                                                                <div className="w-16 font-bold text-primary">{entry.gridPosition}</div>
-                                                                <div className="flex-1 flex items-center gap-4">
-                                                                    <Badge variant="outline" className="bg-carbon-black text-white">
-                                                                        {entry.Number || '?'}
-                                                                    </Badge>
-                                                                    <span className="font-medium">{entry.Driver || 'Unknown Driver'}</span>
-                                                                    <Badge variant="secondary">{entry.Class || 'N/A'}</Badge>
-                                                                    <span className="text-gray-600 font-mono text-sm">{entry.BestTime || '--:--'}</span>
+                                                                <div className="w-16 font-bold text-primary flex items-center gap-2">
+                                                                    {entry.gridPosition}
+                                                                    {isTied && (
+                                                                        <span 
+                                                                            className="w-2 h-2 rounded-full bg-yellow-500" 
+                                                                            title="Tied on primary sorting criteria"
+                                                                        />
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    {/* Main driver info row */}
+                                                                    <div className="flex items-center gap-4 mb-1">
+                                                                        <Badge variant="outline" className="bg-carbon-black text-white">
+                                                                            {entry.Number || '?'}
+                                                                        </Badge>
+                                                                        <span className="font-medium">{entry.Driver || 'Unknown Driver'}</span>
+                                                                        <Badge variant="secondary">{entry.Class || 'N/A'}</Badge>
+                                                                        <span className="text-gray-600 font-mono text-sm">{entry.BestTime || '--:--'}</span>
+                                                                    </div>
+                                                                    
+                                                                    {/* Detailed statistics row */}
+                                                                    {entry.originalDriver && (
+                                                                        <div className="flex items-center gap-6 text-xs text-gray-500 ml-16">
+                                                                            {entry.originalDriver.secondBestOverallTime && (
+                                                                                <span className="font-mono">
+                                                                                    2nd Best: {entry.originalDriver.secondBestOverallTime.time}
+                                                                                </span>
+                                                                            )}
+                                                                            {entry.originalDriver.totalPoints > 0 && (
+                                                                                <span>
+                                                                                    Total Pts: {entry.originalDriver.totalPoints}
+                                                                                </span>
+                                                                            )}
+                                                                            {entry.originalDriver.averagePoints > 0 && (
+                                                                                <span>
+                                                                                    Avg Pts: {entry.originalDriver.averagePoints.toFixed(1)}
+                                                                                </span>
+                                                                            )}
+                                                                            {entry.originalDriver.bestPositionInClass && (
+                                                                                <span>
+                                                                                    Best PIC: {entry.originalDriver.bestPositionInClass}
+                                                                                </span>
+                                                                            )}
+                                                                            {entry.originalDriver.averagePositionInClass && (
+                                                                                <span>
+                                                                                    Avg PIC: {entry.originalDriver.averagePositionInClass}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                                 <Button
                                                                     size="icon"
@@ -1571,7 +2086,8 @@ const GridBuilder = () => {
                                                                     <img src={minus3Icon} alt="End of wave" className="h-4 w-4" />
                                                                 </Button>
                                                             </div>
-                                                        ));
+                                                            );
+                                                        });
                                                     }
                                                 })()}
                                                 {wave.emptyPositions > 0 && waveIdx < finalGrid.length - 1 && (
@@ -1614,7 +2130,7 @@ const GridBuilder = () => {
                         
                         <Card className="bg-gradient-to-br from-racing-red to-racing-red-dark text-white">
                             <CardContent className="pt-10 pb-10">
-                                <File className="h-16 w-16 mx-auto mb-4" />
+                                <File className="h-16 w-16 mx-auto mb-4 text-white" />
                                 <h3 className="text-xl font-semibold mb-2">Grid Summary</h3>
                                 <p>Total Waves: {finalGrid.length}</p>
                                 <p>Total Entries: {finalGrid.reduce((sum, wave) => sum + wave.entries.length, 0)}</p>
@@ -1669,153 +2185,6 @@ const GridBuilder = () => {
                     </div>
                 );
                 
-            case 6:
-                return (
-                    <div className="max-w-4xl mx-auto space-y-6">
-                        <h2 className="text-3xl font-semibold text-center mb-8">Grid Builder Help</h2>
-                        
-                        <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-track-blue">
-                            <CardHeader>
-                                <CardTitle className="text-track-blue">Overview</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-lg leading-relaxed">
-                                    Grid Builder helps race organizers create professional starting grids for racing events. 
-                                    Upload CSV race data, configure multiple waves with different start types, and export grids as PDF or CSV files.
-                                </p>
-                            </CardContent>
-                        </Card>
-
-                        <div className="grid md:grid-cols-2 gap-4">
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Upload className="h-5 w-5 text-track-blue" />
-                                        Step 1: Upload Files
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <p className="mb-3">Import your race data from CSV files. Supports multiple file formats with Driver, Car Number, Class, and timing information.</p>
-                                    <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
-                                        <li>Drag & drop or click to upload</li>
-                                        <li>Multiple files supported</li>
-                                        <li>Automatic format detection</li>
-                                    </ul>
-                                </CardContent>
-                            </Card>
-
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Flag className="h-5 w-5 text-track-blue" />
-                                        Step 2: Set Waves
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <p className="mb-3">Choose how many starting groups you need (1-10 waves). More waves create smaller, more competitive groups.</p>
-                                    <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
-                                        <li>Slider or input selection</li>
-                                        <li>Consider track capacity</li>
-                                        <li>Balance competition levels</li>
-                                    </ul>
-                                </CardContent>
-                            </Card>
-
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <FileText className="h-5 w-5 text-track-blue" />
-                                        Step 3: Configure
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <p className="mb-3">Set up each wave's start type, assign classes, choose sorting criteria, and configure grid order options.</p>
-                                    <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
-                                        <li>Flying vs Standing starts</li>
-                                        <li>Class assignments</li>
-                                        <li>Sort by position, time, or points</li>
-                                        <li>Inversion options</li>
-                                    </ul>
-                                </CardContent>
-                            </Card>
-
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <RefreshCw className="h-5 w-5 text-track-blue" />
-                                        Step 4: Review
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <p className="mb-3">Fine-tune your grid with manual adjustments. Drag & drop drivers, move entire classes, merge waves, or reset changes.</p>
-                                    <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
-                                        <li>Drag & drop reordering</li>
-                                        <li>Class movement controls</li>
-                                        <li>Wave merge & reset options</li>
-                                    </ul>
-                                </CardContent>
-                            </Card>
-                        </div>
-
-                        <Card className="bg-gradient-to-r from-pit-orange/10 to-pit-orange/20 border-pit-orange">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Download className="h-5 w-5" />
-                                    Step 5: Export Options
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="grid md:grid-cols-2 gap-4">
-                                    <div>
-                                        <h4 className="font-semibold mb-2">PDF Export</h4>
-                                        <p className="text-sm">Professional formatted grid sheets perfect for printing and posting at events.</p>
-                                    </div>
-                                    <div>
-                                        <h4 className="font-semibold mb-2">CSV Export</h4>
-                                        <p className="text-sm">Spreadsheet-friendly format for further editing or importing into other systems.</p>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        <Alert className="bg-caution-yellow/10 border-caution-yellow">
-                            <Info className="h-4 w-4" />
-                            <AlertTitle>Pro Tips</AlertTitle>
-                            <AlertDescription>
-                                <ul className="list-disc pl-5 space-y-1 mt-2">
-                                    <li><strong>Plan Your Waves:</strong> Consider track capacity, safety, and competitive balance</li>
-                                    <li><strong>Class Ordering:</strong> Use fastest/slowest class first for different race dynamics</li>
-                                    <li><strong>Inversion Strategy:</strong> Mix up the field to create closer racing</li>
-                                    <li><strong>Data Quality:</strong> Ensure CSV files have consistent formatting and class names</li>
-                                </ul>
-                            </AlertDescription>
-                        </Alert>
-
-                        <Alert variant="destructive">
-                            <AlertCircle className="h-4 w-4" />
-                            <AlertTitle>Troubleshooting</AlertTitle>
-                            <AlertDescription>
-                                <div className="space-y-2 mt-2">
-                                    <p><strong>Upload Issues:</strong> Check file is valid CSV with Driver, Number, Class columns</p>
-                                    <p><strong>Missing Classes:</strong> Verify CSV files contain Class column with data</p>
-                                    <p><strong>Sort Options Missing:</strong> Timing or Points data may not be available in uploaded files</p>
-                                    <p><strong>Export Problems:</strong> Ensure grid has been built and grid name is filled in</p>
-                                </div>
-                            </AlertDescription>
-                        </Alert>
-
-                        <div className="text-center">
-                            <Button 
-                                size="lg"
-                                className="bg-grid-green hover:bg-grid-green/90"
-                                onClick={() => setCurrentStep(1)}
-                            >
-                                <Flag className="mr-2 h-5 w-5" />
-                                Start Building Your Grid
-                            </Button>
-                        </div>
-                    </div>
-                );
                 
             default:
                 return null;
@@ -1838,7 +2207,7 @@ const GridBuilder = () => {
                         variant="ghost"
                         size="sm"
                         className="absolute top-4 right-4 text-white hover:bg-white/20"
-                        onClick={() => setCurrentStep(6)}
+                        onClick={() => setShowHelpModal(true)}
                     >
                         <HelpCircle className="h-5 w-5 mr-2" />
                         Help
@@ -1878,8 +2247,171 @@ const GridBuilder = () => {
                 </main>
                 
                 <div className="fixed bottom-3 right-4 text-xs text-gray-500 font-mono">
-                    v0.2.4
+                    v0.2.19
                 </div>
+
+                {/* Help Modal */}
+                <Dialog open={showHelpModal} onOpenChange={setShowHelpModal}>
+                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle className="text-2xl font-semibold text-center">Grid Builder Help</DialogTitle>
+                            <DialogDescription className="text-center">
+                                Learn how to create professional starting grids for your racing events
+                            </DialogDescription>
+                        </DialogHeader>
+                        
+                        <div className="space-y-6">
+                            <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-track-blue">
+                                <CardHeader>
+                                    <CardTitle className="text-track-blue">Overview</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-lg leading-relaxed">
+                                        Grid Builder helps race organizers create professional starting grids for racing events. 
+                                        Upload CSV race data, configure multiple waves with different start types, and export grids as PDF or CSV files.
+                                    </p>
+                                </CardContent>
+                            </Card>
+
+                            <div className="grid md:grid-cols-2 gap-4">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Upload className="h-5 w-5 text-track-blue" />
+                                            Step 1: Upload Files
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <p className="mb-3">Import your race data from CSV files. Supports multiple file formats with Driver, Car Number, Class, and timing information.</p>
+                                        <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
+                                            <li>Drag & drop or click to upload</li>
+                                            <li>Multiple files supported</li>
+                                            <li>Automatic format detection</li>
+                                        </ul>
+                                    </CardContent>
+                                </Card>
+
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Flag className="h-5 w-5 text-track-blue" />
+                                            Step 2: Set Waves
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <p className="mb-3">Choose how many starting groups you need (1-10 waves). More waves create smaller, more competitive groups.</p>
+                                        <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
+                                            <li>Slider or input selection</li>
+                                            <li>Consider track capacity</li>
+                                            <li>Balance competition levels</li>
+                                        </ul>
+                                    </CardContent>
+                                </Card>
+
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Settings className="h-5 w-5 text-track-blue" />
+                                            Step 3: Configure
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <p className="mb-3">Set up each wave's start type, assign classes, choose sorting criteria, and configure grid order options.</p>
+                                        <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
+                                            <li>Flying vs Standing starts</li>
+                                            <li>Class assignments</li>
+                                            <li>Sort by position, time, or points</li>
+                                            <li>Inversion options</li>
+                                        </ul>
+                                    </CardContent>
+                                </Card>
+
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Eye className="h-5 w-5 text-track-blue" />
+                                            Step 4: Review
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <p className="mb-3">Fine-tune your grid with manual adjustments. Drag & drop drivers, move entire classes, merge waves, or reset changes.</p>
+                                        <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
+                                            <li>Drag & drop reordering</li>
+                                            <li>Class movement controls</li>
+                                            <li>Wave merge & reset options</li>
+                                        </ul>
+                                    </CardContent>
+                                </Card>
+                            </div>
+
+                            <Card className="bg-gradient-to-r from-pit-orange/10 to-pit-orange/20 border-pit-orange">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Download className="h-5 w-5" />
+                                        Step 5: Export Options
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid md:grid-cols-2 gap-4">
+                                        <div>
+                                            <h4 className="font-semibold mb-2">PDF Export</h4>
+                                            <p className="text-sm">Professional formatted grid sheets perfect for printing and posting at events.</p>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-semibold mb-2">CSV Export</h4>
+                                            <p className="text-sm">Spreadsheet-friendly format for further editing or importing into other systems.</p>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Alert className="bg-caution-yellow/10 border-caution-yellow">
+                                <Info className="h-4 w-4" />
+                                <AlertTitle>Pro Tips</AlertTitle>
+                                <AlertDescription>
+                                    <ul className="list-disc pl-5 space-y-1 mt-2">
+                                        <li><strong>Plan Your Waves:</strong> Consider track capacity, safety, and competitive balance</li>
+                                        <li><strong>Class Ordering:</strong> Use fastest/slowest class first for different race dynamics</li>
+                                        <li><strong>Inversion Strategy:</strong> Mix up the field to create closer racing</li>
+                                        <li><strong>Data Quality:</strong> Ensure CSV files have consistent formatting and class names</li>
+                                    </ul>
+                                </AlertDescription>
+                            </Alert>
+
+                            <Alert variant="destructive">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertTitle>Troubleshooting</AlertTitle>
+                                <AlertDescription>
+                                    <div className="space-y-2 mt-2">
+                                        <p><strong>Upload Issues:</strong> Check file is valid CSV with Driver, Number, Class columns</p>
+                                        <p><strong>Missing Classes:</strong> Verify CSV files contain Class column with data</p>
+                                        <p><strong>Sort Options Missing:</strong> Timing or Points data may not be available in uploaded files</p>
+                                        <p><strong>Export Problems:</strong> Ensure grid has been built and grid name is filled in</p>
+                                    </div>
+                                </AlertDescription>
+                            </Alert>
+
+                            <div className="text-center">
+                                <Button 
+                                    size="lg"
+                                    className="bg-grid-green hover:bg-grid-green/90"
+                                    onClick={() => {
+                                        setShowHelpModal(false);
+                                        setCurrentStep(1);
+                                    }}
+                                >
+                                    <Flag className="mr-2 h-5 w-5" />
+                                    Start Building Your Grid
+                                </Button>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            </div>
+            
+            {/* Version display in bottom-right corner */}
+            <div className="fixed bottom-4 right-4 text-xs text-gray-400">
+                v0.3.0
             </div>
         </div>
     );

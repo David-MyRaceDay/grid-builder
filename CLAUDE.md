@@ -16,7 +16,7 @@ This project follows semantic versioning with specific rules:
 2. **Before deployment**: Increment MINOR version using `npm version minor`
 3. **Major releases**: Increment MAJOR version using `npm version major`
 
-**Current Version**: 0.2.4
+**Current Version**: 0.3.0
 
 ## Key Technologies
 - **React 19.1.1** - Main framework
@@ -167,6 +167,15 @@ firebase deploy
 - v0.1.0: Initial Create React App setup
 - v0.2.0: Full grid builder functionality with class movement, CSV/PDF export, and Firebase deployment
 - v0.2.4: Complete UI refactor to shadcn/ui and Tailwind CSS - modernized components, improved accessibility, maintained My Race Day branding
+- v0.3.0: Major feature additions:
+  - Multi-file timing data consolidation with comprehensive driver statistics
+  - Orbits laptimes CSV file support with best/2nd best time extraction
+  - Advanced tie-breaking system for points-based sorting (3-level cascading)
+  - Position in Class (PIC) data extraction and analysis
+  - Enhanced Review screen with detailed driver statistics display
+  - Visual tie indicators for grid positions
+  - Configurable tie-breaking options per wave
+  - "Assign All Classes" button now appears contextually for any wave
 
 ## Remember
 - Always increment patch version after code changes
