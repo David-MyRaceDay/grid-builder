@@ -2346,10 +2346,6 @@ const GridBuilder = () => {
                 <main className="p-8">
                     {renderStep()}
                 </main>
-                
-                <div className="fixed bottom-3 right-4 text-xs text-gray-500 font-mono">
-                    v0.2.19
-                </div>
 
                 {/* Help Modal */}
                 <Dialog open={showHelpModal} onOpenChange={setShowHelpModal}>
