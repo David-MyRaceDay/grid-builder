@@ -32,9 +32,9 @@ export const initializeWaveConfigs = (waveCount, defaultWaveSpacing, hasMultiple
             invertCount: 2,
             emptyPositions: i < waveCount - 1 ? defaultWaveSpacing : 0,
             emptyPositionsBetweenClasses: 0,
-            tieBreaker1: 'bestTime',
-            tieBreaker2: 'bestPositionInClass',
-            tieBreaker3: 'alphabetical'
+            groupByClass: false,
+            classOrder: 'fastest',
+            tieBreakers: ['bestTime', 'bestPIC', 'alphabetical']
         });
         
         if (configs[i].startType === 'standing') {
@@ -64,15 +64,26 @@ export const evaluateTieBreaker = (a, b, criterion) => {
             const secondB = parseTimeToSeconds(b.SecondBest || '');
             return secondA - secondB;
             
+        case 'bestPIC':
         case 'bestPositionInClass':
             const picA = a.originalDriver?.bestPositionInClass || 999;
             const picB = b.originalDriver?.bestPositionInClass || 999;
             return picA - picB;
             
+        case 'averagePIC':
+            const avgPicA = a.originalDriver?.averagePositionInClass || 999;
+            const avgPicB = b.originalDriver?.averagePositionInClass || 999;
+            return avgPicA - avgPicB;
+            
         case 'bestPosition':
             const posA = a.originalDriver?.bestPosition || 999;
             const posB = b.originalDriver?.bestPosition || 999;
             return posA - posB;
+            
+        case 'averagePosition':
+            const avgPosA = a.originalDriver?.averagePosition || 999;
+            const avgPosB = b.originalDriver?.averagePosition || 999;
+            return avgPosA - avgPosB;
             
         case 'alphabetical':
             const nameA = (a.Driver || '').toLowerCase();
@@ -95,22 +106,28 @@ export const evaluateTieBreaker = (a, b, criterion) => {
  * @returns {number} Comparison result (-1, 0, 1)
  */
 export const applyCascadingTieBreakers = (a, b, config) => {
-    // First tie-breaker
-    if (config.tieBreaker1) {
-        const result1 = evaluateTieBreaker(a, b, config.tieBreaker1);
-        if (result1 !== 0) return result1;
-    }
-    
-    // Second tie-breaker
-    if (config.tieBreaker2) {
-        const result2 = evaluateTieBreaker(a, b, config.tieBreaker2);
-        if (result2 !== 0) return result2;
-    }
-    
-    // Third tie-breaker
-    if (config.tieBreaker3) {
-        const result3 = evaluateTieBreaker(a, b, config.tieBreaker3);
-        if (result3 !== 0) return result3;
+    // Check if we have the new tieBreakers array format
+    if (config.tieBreakers && Array.isArray(config.tieBreakers)) {
+        for (const tieBreaker of config.tieBreakers) {
+            const result = evaluateTieBreaker(a, b, tieBreaker);
+            if (result !== 0) return result;
+        }
+    } else {
+        // Fallback to old format for backward compatibility
+        if (config.tieBreaker1) {
+            const result1 = evaluateTieBreaker(a, b, config.tieBreaker1);
+            if (result1 !== 0) return result1;
+        }
+        
+        if (config.tieBreaker2) {
+            const result2 = evaluateTieBreaker(a, b, config.tieBreaker2);
+            if (result2 !== 0) return result2;
+        }
+        
+        if (config.tieBreaker3) {
+            const result3 = evaluateTieBreaker(a, b, config.tieBreaker3);
+            if (result3 !== 0) return result3;
+        }
     }
     
     return 0; // Still tied after all criteria
@@ -343,8 +360,62 @@ export const buildGrid = (waveConfigs, validDrivers) => {
             }
         });
         
-        // Handle class-based ordering (fastest/slowest first)
-        if (config.gridOrder === 'fastestFirst' || config.gridOrder === 'slowestFirst') {
+        // Handle grouping by class if enabled
+        if (config.groupByClass) {
+            // Group drivers by class while maintaining sort order within each class
+            const groupedData = [];
+            const classes = [...new Set(waveData.map(d => d.Class))]; // Get unique classes
+            
+            // Sort classes based on classOrder setting
+            let sortedClasses = [...classes];
+            if (config.classOrder === 'fastest') {
+                // Calculate fastest time per class
+                const classTimes = {};
+                classes.forEach(cls => {
+                    const classDrivers = waveData.filter(d => d.Class === cls);
+                    const times = classDrivers.map(d => parseTime(d.BestTime)).filter(t => t < Infinity);
+                    classTimes[cls] = times.length > 0 ? Math.min(...times) : Infinity;
+                });
+                sortedClasses.sort((a, b) => classTimes[a] - classTimes[b]);
+            } else if (config.classOrder === 'slowest') {
+                // Calculate fastest time per class (then reverse)
+                const classTimes = {};
+                classes.forEach(cls => {
+                    const classDrivers = waveData.filter(d => d.Class === cls);
+                    const times = classDrivers.map(d => parseTime(d.BestTime)).filter(t => t < Infinity);
+                    classTimes[cls] = times.length > 0 ? Math.min(...times) : Infinity;
+                });
+                sortedClasses.sort((a, b) => classTimes[b] - classTimes[a]);
+            } else if (config.classOrder === 'alphabetical') {
+                sortedClasses.sort();
+            }
+            
+            // Build the grouped wave data
+            sortedClasses.forEach((cls, clsIdx) => {
+                const classDrivers = waveData.filter(d => d.Class === cls);
+                groupedData.push(...classDrivers);
+                
+                // Add empty positions between classes if configured
+                if (clsIdx < sortedClasses.length - 1 && config.emptyPositionsBetweenClasses > 0) {
+                    for (let i = 0; i < config.emptyPositionsBetweenClasses; i++) {
+                        groupedData.push({
+                            Class: '',
+                            Number: '',
+                            Driver: 'EMPTY',
+                            BestTime: '',
+                            isEmpty: true
+                        });
+                    }
+                }
+            });
+            
+            // Replace waveData with grouped data
+            waveData.length = 0;
+            waveData.push(...groupedData);
+        }
+        
+        // Handle class-based ordering (fastest/slowest first) - DEPRECATED, kept for backward compatibility
+        else if (config.gridOrder === 'fastestFirst' || config.gridOrder === 'slowestFirst') {
             // Calculate fastest time per class
             const classTimes = {};
             config.classes.forEach(cls => {

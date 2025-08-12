@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo, useCallback } from 'react';
 import { 
   Upload, 
   FileText, 
@@ -15,7 +15,11 @@ import {
   AlertCircle,
   Info,
   Settings,
-  Eye
+  Eye,
+  Plus,
+  Minus,
+  Merge,
+  MoveVertical
 } from 'lucide-react';
 
 // Import utility modules
@@ -30,7 +34,10 @@ import {
     getCarCountsByClass,
     getCarCountInWave,
     getAssignedClasses,
-    detectTies
+    detectTies,
+    getClassOrder,
+    getMergedClassDisplay,
+    mergeClassWithPrevious as mergeClassEntries
 } from './utils/gridBuilder.js';
 import { 
     generatePDF, 
@@ -91,7 +98,18 @@ const GridBuilder = () => {
         const csvFiles = fileArray.filter(f => f.name.endsWith('.csv'));
         
         try {
-            const newParsed = await Promise.all(csvFiles.map(parseCSV));
+            // Read file contents first
+            const fileContents = await Promise.all(csvFiles.map(file => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve({ content: e.target.result, fileName: file.name });
+                    reader.onerror = (e) => reject(e);
+                    reader.readAsText(file);
+                });
+            }));
+            
+            // Now parse the content
+            const newParsed = fileContents.map(({ content, fileName }) => parseCSV(content, fileName));
             // Extract original files from previously parsed data
             const previousFiles = parsedData.length > 0 && parsedData[0].originalFiles 
                 ? parsedData[0].originalFiles 
@@ -199,12 +217,12 @@ const GridBuilder = () => {
     const nextStep = () => {
         if (currentStep === 2) {
             // Initialize wave configs when moving from step 2 to 3
-            const configs = initializeWaveConfigs(waveCount, defaultWaveSpacing, parsedData);
+            const configs = initializeWaveConfigs(waveCount, defaultWaveSpacing, hasMultipleFiles, hasPositionData);
             setWaveConfigs(configs);
         }
         if (currentStep === 3) {
             // Build the grid when moving from step 3 to 4
-            const grid = buildGrid(parsedData, waveConfigs);
+            const grid = buildGrid(waveConfigs, parsedData);
             setFinalGrid(grid);
             setOriginalGrid(JSON.parse(JSON.stringify(grid))); // Deep copy for reset functionality
         }
@@ -294,124 +312,143 @@ const GridBuilder = () => {
         
         setFinalGrid(newGrid);
     };
-    
-    const moveClassUp = (waveIndex, entryIndex) => {
-        if (isMovingRef.current) return;
-        isMovingRef.current = true;
-        
-        setTimeout(() => {
-            isMovingRef.current = false;
-        }, 300);
-        
-        
+
+    const moveToEndOfClass = (waveIndex, entryIndex) => {
         const newGrid = [...finalGrid];
-        const currentEntry = newGrid[waveIndex].entries[entryIndex];
+        const entry = newGrid[waveIndex].entries[entryIndex];
+        const entryClass = entry.Class;
         
-        if (!currentEntry?.Class) return;
+        // Find the last entry of the same class
+        const lastClassEntryIndex = newGrid[waveIndex].entries
+            .map((e, i) => ({ entry: e, index: i }))
+            .filter(item => item.entry.Class === entryClass)
+            .pop()?.index;
         
-        const currentClass = currentEntry.Class;
-        
-        // Find all entries with the same class in this wave
-        const classEntries = [];
-        newGrid[waveIndex].entries.forEach((entry, idx) => {
-            if (entry.Class === currentClass) {
-                classEntries.push({ entry, index: idx });
-            }
-        });
-        
-        if (classEntries.length === 0) return;
-        
-        // Find the first entry of this class
-        const firstClassEntry = classEntries[0];
-        const firstClassIndex = firstClassEntry.index;
-        
-        // If already at the top, do nothing
-        if (firstClassIndex === 0) return;
-        
-        // Find where to move the class (above the previous class)
-        let targetIndex = firstClassIndex - 1;
-        
-        // Find the start of the previous class
-        const targetClass = newGrid[waveIndex].entries[targetIndex].Class;
-        while (targetIndex > 0 && newGrid[waveIndex].entries[targetIndex - 1].Class === targetClass) {
-            targetIndex--;
+        if (lastClassEntryIndex !== undefined && lastClassEntryIndex !== entryIndex) {
+            // Remove from current position
+            newGrid[waveIndex].entries.splice(entryIndex, 1);
+            
+            // Adjust target index if we removed an item before it
+            const adjustedTargetIndex = entryIndex < lastClassEntryIndex ? lastClassEntryIndex : lastClassEntryIndex + 1;
+            
+            // Insert at the end of the class
+            newGrid[waveIndex].entries.splice(adjustedTargetIndex, 0, entry);
+            
+            setFinalGrid(newGrid);
         }
-        
-        // Remove all class entries from their current positions (in reverse order to maintain indices)
-        const entriesToMove = [];
-        for (let i = classEntries.length - 1; i >= 0; i--) {
-            const removed = newGrid[waveIndex].entries.splice(classEntries[i].index, 1)[0];
-            entriesToMove.unshift(removed);
-        }
-        
-        // Insert all class entries at the target position
-        newGrid[waveIndex].entries.splice(targetIndex, 0, ...entriesToMove);
-        
-        setFinalGrid(newGrid);
     };
     
-    const moveClassDown = (waveIndex, entryIndex) => {
-        if (isMovingRef.current) return;
-        isMovingRef.current = true;
+    const moveClassUp = useCallback((waveIndex, className) => {
+        const operationKey = `${waveIndex}-${className}-up`;
         
-        setTimeout(() => {
-            isMovingRef.current = false;
-        }, 300);
+        if (isMovingRef.current === operationKey || isMovingRef.current) {
+            return;
+        }
         
+        isMovingRef.current = operationKey;
         
-        const newGrid = [...finalGrid];
-        const currentEntry = newGrid[waveIndex].entries[entryIndex];
-        
-        if (!currentEntry?.Class) return;
-        
-        const currentClass = currentEntry.Class;
-        
-        // Find all entries with the same class in this wave
-        const classEntries = [];
-        newGrid[waveIndex].entries.forEach((entry, idx) => {
-            if (entry.Class === currentClass) {
-                classEntries.push({ entry, index: idx });
+        setFinalGrid(prev => {
+            const newGrid = [...prev];
+            const wave = { ...newGrid[waveIndex] };
+            
+            const classOrder = [];
+            const classMap = new Map();
+            
+            wave.entries.forEach(entry => {
+                if (!classMap.has(entry.Class)) {
+                    classOrder.push(entry.Class);
+                    classMap.set(entry.Class, []);
+                }
+                classMap.get(entry.Class).push(entry);
+            });
+            
+            const currentClassIndex = classOrder.indexOf(className);
+            
+            if (currentClassIndex <= 0) {
+                isMovingRef.current = false;
+                return newGrid;
             }
+            
+            const newClassOrder = [...classOrder];
+            const temp = newClassOrder[currentClassIndex];
+            newClassOrder[currentClassIndex] = newClassOrder[currentClassIndex - 1];
+            newClassOrder[currentClassIndex - 1] = temp;
+            
+            const newEntries = [];
+            newClassOrder.forEach(cls => {
+                if (classMap.has(cls)) {
+                    newEntries.push(...classMap.get(cls));
+                }
+            });
+            
+            wave.entries = newEntries;
+            newGrid[waveIndex] = wave;
+            
+            setTimeout(() => {
+                if (isMovingRef.current === operationKey) {
+                    isMovingRef.current = false;
+                }
+            }, 200);
+            
+            return newGrid;
         });
+    }, []);
+    
+    const moveClassDown = useCallback((waveIndex, className) => {
+        const operationKey = `${waveIndex}-${className}-down`;
         
-        if (classEntries.length === 0) return;
-        
-        // Find the last entry of this class
-        const lastClassEntry = classEntries[classEntries.length - 1];
-        const lastClassIndex = lastClassEntry.index;
-        
-        // If already at the bottom, do nothing
-        if (lastClassIndex === newGrid[waveIndex].entries.length - 1) return;
-        
-        // Find where to move the class (after the next class)
-        let targetIndex = lastClassIndex + 1;
-        
-        // Find the end of the next class
-        const targetClass = newGrid[waveIndex].entries[targetIndex].Class;
-        while (targetIndex < newGrid[waveIndex].entries.length - 1 && 
-               newGrid[waveIndex].entries[targetIndex + 1].Class === targetClass) {
-            targetIndex++;
+        if (isMovingRef.current === operationKey || isMovingRef.current) {
+            return;
         }
         
-        // Adjust target index to be after the next class
-        targetIndex = targetIndex + 1;
+        isMovingRef.current = operationKey;
         
-        // Remove all class entries from their current positions (in reverse order to maintain indices)
-        const entriesToMove = [];
-        for (let i = classEntries.length - 1; i >= 0; i--) {
-            const removed = newGrid[waveIndex].entries.splice(classEntries[i].index, 1)[0];
-            entriesToMove.unshift(removed);
-        }
-        
-        // Adjust target index after removals
-        const adjustment = classEntries.filter(ce => ce.index < targetIndex).length;
-        targetIndex -= adjustment;
-        
-        // Insert all class entries at the target position
-        newGrid[waveIndex].entries.splice(targetIndex, 0, ...entriesToMove);
-        
-        setFinalGrid(newGrid);
-    };
+        setFinalGrid(prev => {
+            const newGrid = [...prev];
+            const wave = { ...newGrid[waveIndex] };
+            
+            const classOrder = [];
+            const classMap = new Map();
+            
+            wave.entries.forEach(entry => {
+                if (!classMap.has(entry.Class)) {
+                    classOrder.push(entry.Class);
+                    classMap.set(entry.Class, []);
+                }
+                classMap.get(entry.Class).push(entry);
+            });
+            
+            const currentClassIndex = classOrder.indexOf(className);
+            
+            if (currentClassIndex >= classOrder.length - 1 || currentClassIndex === -1) {
+                isMovingRef.current = false;
+                return newGrid;
+            }
+            
+            const newClassOrder = [...classOrder];
+            const temp = newClassOrder[currentClassIndex];
+            newClassOrder[currentClassIndex] = newClassOrder[currentClassIndex + 1];
+            newClassOrder[currentClassIndex + 1] = temp;
+            
+            const newEntries = [];
+            newClassOrder.forEach(cls => {
+                if (classMap.has(cls)) {
+                    newEntries.push(...classMap.get(cls));
+                }
+            });
+            
+            wave.entries = newEntries;
+            newGrid[waveIndex] = wave;
+            
+            setTimeout(() => {
+                if (isMovingRef.current === operationKey) {
+                    isMovingRef.current = false;
+                }
+            }, 200);
+            
+            return newGrid;
+        });
+    }, []);
     
     const mergeClassWithPrevious = (waveIndex, entryIndex) => {
         const newGrid = [...finalGrid];
@@ -493,8 +530,8 @@ const GridBuilder = () => {
     };
     
     // Helper functions for component logic
-    const availableClasses = extractClasses(parsedData);
-    const carCounts = getCarCountsByClass(parsedData);
+    const availableClasses = useMemo(() => extractClasses(parsedData), [parsedData]);
+    const carCounts = useMemo(() => getCarCountsByClass(parsedData), [parsedData]);
     
     const hasSecondBestTimes = () => {
         return parsedData.some(driver => 
@@ -807,28 +844,43 @@ const GridBuilder = () => {
                             <CardContent className="space-y-6">
                                 {/* Wave Count */}
                                 <div>
-                                    <Label htmlFor="wave-count">Number of Waves (1-10)</Label>
-                                    <div className="flex items-center space-x-4 mt-2">
-                                        <input
-                                            id="wave-slider"
-                                            type="range"
-                                            min="1"
-                                            max="10"
-                                            value={waveCount}
-                                            onChange={(e) => setWaveCount(parseInt(e.target.value))}
-                                            className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                                            style={{
-                                                background: `linear-gradient(to right, #4B7BFF 0%, #4B7BFF ${(waveCount - 1) * 11.11}%, #e5e7eb ${(waveCount - 1) * 11.11}%, #e5e7eb 100%)`
-                                            }}
-                                        />
+                                    <Label htmlFor="wave-count">Number of Waves</Label>
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => setWaveCount(Math.max(1, waveCount - 1))}
+                                            disabled={waveCount <= 1}
+                                            className="h-10 w-10"
+                                        >
+                                            <Minus className="h-4 w-4" />
+                                        </Button>
                                         <Input
+                                            id="wave-count"
                                             type="number"
                                             min="1"
                                             max="10"
                                             value={waveCount}
-                                            onChange={(e) => setWaveCount(Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))}
-                                            className="w-20"
+                                            onChange={(e) => {
+                                                const value = parseInt(e.target.value);
+                                                if (!isNaN(value)) {
+                                                    setWaveCount(Math.min(10, Math.max(1, value)));
+                                                }
+                                            }}
+                                            className="w-24 text-center text-lg font-semibold"
                                         />
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => setWaveCount(Math.min(10, waveCount + 1))}
+                                            disabled={waveCount >= 10}
+                                            className="h-10 w-10"
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                        </Button>
+                                        <span className="text-sm text-gray-500 ml-2">(1-10)</span>
                                     </div>
                                 </div>
 
@@ -838,16 +890,44 @@ const GridBuilder = () => {
                                     <p className="text-sm text-gray-500 mb-2">
                                         Add empty grid positions between waves for spacing
                                     </p>
-                                    <Input
-                                        id="wave-spacing"
-                                        type="number"
-                                        min="0"
-                                        max="10"
-                                        value={defaultWaveSpacing}
-                                        onChange={(e) => setDefaultWaveSpacing(Math.max(0, parseInt(e.target.value) || 0))}
-                                        className="w-32"
-                                        placeholder="0"
-                                    />
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => setDefaultWaveSpacing(Math.max(0, defaultWaveSpacing - 1))}
+                                            disabled={defaultWaveSpacing <= 0}
+                                            className="h-10 w-10"
+                                        >
+                                            <Minus className="h-4 w-4" />
+                                        </Button>
+                                        <Input
+                                            id="wave-spacing"
+                                            type="number"
+                                            min="0"
+                                            max="10"
+                                            value={defaultWaveSpacing}
+                                            onChange={(e) => {
+                                                const value = parseInt(e.target.value);
+                                                if (!isNaN(value)) {
+                                                    setDefaultWaveSpacing(Math.min(10, Math.max(0, value)));
+                                                }
+                                            }}
+                                            className="w-24 text-center text-lg font-semibold"
+                                            placeholder="0"
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => setDefaultWaveSpacing(Math.min(10, defaultWaveSpacing + 1))}
+                                            disabled={defaultWaveSpacing >= 10}
+                                            className="h-10 w-10"
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                        </Button>
+                                        <span className="text-sm text-gray-500 ml-2">(0-10 positions)</span>
+                                    </div>
                                 </div>
 
                                 {/* Preview */}
@@ -1084,19 +1164,33 @@ const GridBuilder = () => {
                                                             </div>
                                                             
                                                             {config.groupByClass && (
-                                                                <div className="ml-6">
-                                                                    <Label htmlFor={`class-order-${idx}`} className="text-sm">Class Order</Label>
-                                                                    <select
-                                                                        id={`class-order-${idx}`}
-                                                                        value={config.classOrder}
-                                                                        onChange={(e) => updateWaveConfig(idx, 'classOrder', e.target.value)}
-                                                                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary text-sm"
-                                                                    >
-                                                                        <option value="fastest">Fastest Class First</option>
-                                                                        <option value="slowest">Slowest Class First</option>
-                                                                        <option value="alphabetical">Alphabetical</option>
-                                                                    </select>
-                                                                </div>
+                                                                <>
+                                                                    <div className="ml-6">
+                                                                        <Label htmlFor={`class-order-${idx}`} className="text-sm">Class Order</Label>
+                                                                        <select
+                                                                            id={`class-order-${idx}`}
+                                                                            value={config.classOrder}
+                                                                            onChange={(e) => updateWaveConfig(idx, 'classOrder', e.target.value)}
+                                                                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary text-sm"
+                                                                        >
+                                                                            <option value="fastest">Fastest Class First</option>
+                                                                            <option value="slowest">Slowest Class First</option>
+                                                                            <option value="alphabetical">Alphabetical</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div className="ml-6 mt-3">
+                                                                        <Label htmlFor={`class-spacing-${idx}`} className="text-sm">Empty Positions Between Classes</Label>
+                                                                        <Input
+                                                                            id={`class-spacing-${idx}`}
+                                                                            type="number"
+                                                                            min="0"
+                                                                            max="5"
+                                                                            value={config.emptyPositionsBetweenClasses || 0}
+                                                                            onChange={(e) => updateWaveConfig(idx, 'emptyPositionsBetweenClasses', Math.max(0, parseInt(e.target.value) || 0))}
+                                                                            className="mt-1 w-20"
+                                                                        />
+                                                                    </div>
+                                                                </>
                                                             )}
                                                             
                                                             <div className="flex items-center">
@@ -1333,7 +1427,7 @@ const GridBuilder = () => {
                                                                             <Button
                                                                                 variant="ghost"
                                                                                 size="sm"
-                                                                                onClick={() => moveClassUp(waveIndex, entryIndex)}
+                                                                                onClick={() => moveClassUp(waveIndex, entry.Class)}
                                                                                 title="Move class up"
                                                                                 className="h-8 w-8 p-0"
                                                                             >
@@ -1342,7 +1436,7 @@ const GridBuilder = () => {
                                                                             <Button
                                                                                 variant="ghost"
                                                                                 size="sm"
-                                                                                onClick={() => moveClassDown(waveIndex, entryIndex)}
+                                                                                onClick={() => moveClassDown(waveIndex, entry.Class)}
                                                                                 title="Move class down"
                                                                                 className="h-8 w-8 p-0"
                                                                             >
@@ -1365,6 +1459,15 @@ const GridBuilder = () => {
                                                                                 className="h-8 w-8 p-0"
                                                                             >
                                                                                 <ChevronUp className="h-4 w-4" />
+                                                                            </Button>
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="sm"
+                                                                                onClick={() => moveToEndOfClass(waveIndex, entryIndex)}
+                                                                                title="Move to end of class"
+                                                                                className="h-8 w-8 p-0"
+                                                                            >
+                                                                                <MoveVertical className="h-4 w-4" />
                                                                             </Button>
                                                                             <Button
                                                                                 variant="ghost"
@@ -1780,7 +1883,7 @@ const GridBuilder = () => {
             
             {/* Version display in bottom-right corner */}
             <div className="fixed bottom-4 right-4 text-xs text-gray-400">
-                v0.6.0
+                v0.6.6
             </div>
         </div>
     );
