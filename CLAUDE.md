@@ -7,16 +7,16 @@ Grid Builder is a React application for creating professional starting grids for
 This project follows semantic versioning with specific rules:
 
 ### Version Format: `MAJOR.MINOR.PATCH`
-- **MAJOR**: Breaking changes or major feature overhauls
-- **MINOR**: New features, significant updates (increment before deployment)
-- **PATCH**: Bug fixes, small improvements, code updates (increment after any code changes)
+- **MAJOR**: Breaking changes or major feature overhauls (user prompted)
+- **MINOR**: New features, significant updates (user prompted)
+- **PATCH**: Bug fixes, small improvements, code updates (auto-increment after any code changes)
 
 ### Version Update Rules
-1. **After ANY code changes**: Increment PATCH version using `npm version patch`
-2. **Before deployment**: Increment MINOR version using `npm version minor`
-3. **Major releases**: Increment MAJOR version using `npm version major`
+1. **After ANY code changes**: Automatically increment PATCH version
+2. **MAJOR/MINOR versions**: Only increment when explicitly requested by user
+3. **Deployment**: Deploy current version (no automatic version changes)
 
-**Current Version**: 0.3.0
+**Current Version**: 0.6.0
 
 ## Key Technologies
 - **React 19.1.1** - Main framework
@@ -28,8 +28,12 @@ This project follows semantic versioning with specific rules:
 - **Lucide React** - Icon library
 
 ## Project Structure
-- `src/GridBuilderNew.js` - Main application component (shadcn/ui refactored version)
+- `src/GridBuilderNew.js` - Main application component (React UI logic only)
 - `src/GridBuilder.js` - Legacy application component
+- `src/utils/` - **Utility modules (NEW in v0.5.0)**
+  - `dataProcessing.js` - CSV parsing, data consolidation, validation
+  - `gridBuilder.js` - Grid building, sorting, class operations, tie-breaking
+  - `exportUtils.js` - PDF/CSV generation, export validation
 - `src/components/ui/` - shadcn/ui component library
 - `src/lib/utils.js` - Utility functions for component styling
 - `src/assets/` - SVG icons and images
@@ -37,6 +41,20 @@ This project follows semantic versioning with specific rules:
 - `postcss.config.js` - PostCSS configuration
 - `firebase.json` - Firebase hosting configuration
 - `package.json` - Dependencies and version
+
+## Architecture (v0.5.0+)
+The application follows a modular architecture with clear separation of concerns:
+
+### **Utility Modules**
+- **`dataProcessing.js`** - Handles all CSV parsing, data consolidation, and validation
+- **`gridBuilder.js`** - Contains grid building logic, sorting algorithms, and class operations
+- **`exportUtils.js`** - Manages PDF/CSV generation and export functionality
+
+### **Benefits of Modular Design**
+- **Maintainability**: Each module has a single responsibility
+- **Testability**: Utility functions can be unit tested independently
+- **Reusability**: Functions can be imported by multiple components
+- **Code Splitting**: Better bundle optimization potential
 
 ## Key Features
 1. **Multi-step workflow**: Upload → Configure → Review → Export
@@ -46,6 +64,8 @@ This project follows semantic versioning with specific rules:
 5. **Drag-and-drop reordering** in review screen
 6. **PDF and CSV export** capabilities
 7. **Real-time grid preview** with wave descriptions
+8. **Class merging** with proper re-sorting
+9. **Empty positions** between classes and waves
 
 ## Development Guidelines
 
@@ -61,18 +81,25 @@ This project follows semantic versioning with specific rules:
 
 ### After Code Changes
 ```bash
-# Manually increment patch version in package.json after any code changes
-# Also update the version display in GridBuilder.js bottom-right corner
-# Example: 0.2.0 → 0.2.1
+# Automatically increment patch version in package.json after any code changes
+# Also update the version display in GridBuilderNew.js bottom-right corner
+# Example: 0.4.0 → 0.4.1
 ```
 
-### Before Deployment
+### For Deployment
 ```bash
-# Manually increment minor version in package.json and GridBuilder.js before deploying
-# Example: 0.2.1 → 0.3.0
-# Then build and deploy
+# Deploy current version without automatic version changes
 npm run build
 firebase deploy
+```
+
+### Version Updates (User Prompted Only)
+```bash
+# MINOR version increment (when user requests for new features)
+# Example: 0.4.5 → 0.5.0
+
+# MAJOR version increment (when user requests for breaking changes)
+# Example: 0.9.0 → 1.0.0
 ```
 
 ### Code Conventions
@@ -176,6 +203,14 @@ firebase deploy
   - Visual tie indicators for grid positions
   - Configurable tie-breaking options per wave
   - "Assign All Classes" button now appears contextually for any wave
+- v0.6.0: **Major Architecture Refactoring**:
+  - Extracted 1,100+ lines into modular utility files
+  - Created `src/utils/` directory with focused modules
+  - Improved maintainability and testability
+  - Class merging with proper re-sorting functionality
+  - Empty positions between classes feature
+  - Default to position sorting when available
+  - Auto-focus on Number of Waves input
 
 ## Remember
 - Always increment patch version after code changes
