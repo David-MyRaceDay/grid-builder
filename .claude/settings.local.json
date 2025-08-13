@@ -14,7 +14,8 @@
       "Bash(mv:*)",
       "Bash(npm start)",
       "Bash(git commit:*)",
-      "Bash(tasklist:*)"
+      "Bash(tasklist:*)",
+      "Bash(git fetch:*)"
     ],
     "deny": []
   }
