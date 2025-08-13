@@ -16,7 +16,7 @@ This project follows semantic versioning with specific rules:
 2. **MAJOR/MINOR versions**: Only increment when explicitly requested by user
 3. **Deployment**: Deploy current version (no automatic version changes)
 
-**Current Version**: 0.6.10
+**Current Version**: 0.6.18
 
 ## Key Technologies
 - **React 19.1.1** - Main framework

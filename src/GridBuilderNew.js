@@ -21,7 +21,9 @@ import {
   Merge,
   MoveVertical,
   ArrowDownToLine,
-  ArrowDownFromLine
+  ArrowDownFromLine,
+  ArrowUpToLine,
+  GripVertical
 } from 'lucide-react';
 
 // Import utility modules
@@ -1596,6 +1598,9 @@ const GridBuilder = () => {
                                                 <table className="w-full">
                                                     <thead className="bg-gray-50">
                                                         <tr>
+                                                            <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
+                                                                <GripVertical className="h-4 w-4 mx-auto" />
+                                                            </th>
                                                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                                 Grid Pos
                                                             </th>
@@ -1640,6 +1645,10 @@ const GridBuilder = () => {
                                                                 const rows = [];
                                                                 let currentPosition = 1;
                                                                 
+                                                                // Calculate unique classes in the wave for visibility logic
+                                                                const uniqueClassesInWave = [...new Set(wave.entries.map(entry => entry.Class))];
+                                                                const showClassControls = uniqueClassesInWave.length > 1;
+                                                                
                                                                 for (const [className, classData] of groupedEntries) {
                                                                     const mergedGroup = mergedClasses.get(waveIndex)?.get(className);
                                                                     const isFirstClassInWave = currentPosition === 1;
@@ -1647,6 +1656,7 @@ const GridBuilder = () => {
                                                                     // Class Header Row
                                                                     rows.push(
                                                                         <tr key={`class-header-${className}`} className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
+                                                                            <td className="px-2 py-3"></td>
                                                                             <td colSpan="4" className="px-4 py-3">
                                                                                 <div className="flex items-center justify-between">
                                                                                     <div className="flex items-center gap-3">
@@ -1663,37 +1673,39 @@ const GridBuilder = () => {
                                                                                             {classData.entries.length} {classData.entries.length === 1 ? 'driver' : 'drivers'}
                                                                                         </span>
                                                                                     </div>
-                                                                                    <div className="flex items-center gap-1">
-                                                                                        <Button
-                                                                                            variant="ghost"
-                                                                                            size="sm"
-                                                                                            onClick={() => moveClassUp(waveIndex, className)}
-                                                                                            title="Move class up"
-                                                                                            className="h-8 w-8 p-0 hover:bg-white hover:border hover:border-gray-300"
-                                                                                            disabled={isFirstClassInWave}
-                                                                                        >
-                                                                                            <ChevronUp className="h-4 w-4" />
-                                                                                        </Button>
-                                                                                        <Button
-                                                                                            variant="ghost"
-                                                                                            size="sm"
-                                                                                            onClick={() => moveClassDown(waveIndex, className)}
-                                                                                            title="Move class down"
-                                                                                            className="h-8 w-8 p-0 hover:bg-white hover:border hover:border-gray-300"
-                                                                                        >
-                                                                                            <ChevronDown className="h-4 w-4" />
-                                                                                        </Button>
-                                                                                        <Button
-                                                                                            variant="ghost"
-                                                                                            size="sm"
-                                                                                            onClick={() => mergeClassWithPrevious(waveIndex, classData.entries[0].originalIndex)}
-                                                                                            title="Merge with previous class"
-                                                                                            className="h-8 w-8 p-0 hover:bg-white hover:border hover:border-gray-300"
-                                                                                            disabled={isFirstClassInWave}
-                                                                                        >
-                                                                                            <Merge className="h-4 w-4" />
-                                                                                        </Button>
-                                                                                    </div>
+                                                                                    {showClassControls && (
+                                                                                        <div className="flex items-center gap-1">
+                                                                                            <Button
+                                                                                                variant="ghost"
+                                                                                                size="sm"
+                                                                                                onClick={() => moveClassUp(waveIndex, className)}
+                                                                                                title="Move class up"
+                                                                                                className="h-8 w-8 p-0 hover:bg-white hover:border hover:border-gray-300"
+                                                                                                disabled={isFirstClassInWave}
+                                                                                            >
+                                                                                                <ChevronUp className="h-4 w-4" />
+                                                                                            </Button>
+                                                                                            <Button
+                                                                                                variant="ghost"
+                                                                                                size="sm"
+                                                                                                onClick={() => moveClassDown(waveIndex, className)}
+                                                                                                title="Move class down"
+                                                                                                className="h-8 w-8 p-0 hover:bg-white hover:border hover:border-gray-300"
+                                                                                            >
+                                                                                                <ChevronDown className="h-4 w-4" />
+                                                                                            </Button>
+                                                                                            <Button
+                                                                                                variant="ghost"
+                                                                                                size="sm"
+                                                                                                onClick={() => mergeClassWithPrevious(waveIndex, classData.entries[0].originalIndex)}
+                                                                                                title="Merge with previous class"
+                                                                                                className="h-8 w-8 p-0 hover:bg-white hover:border hover:border-gray-300"
+                                                                                                disabled={isFirstClassInWave}
+                                                                                            >
+                                                                                                <Merge className="h-4 w-4" />
+                                                                                            </Button>
+                                                                                        </div>
+                                                                                    )}
                                                                                 </div>
                                                                             </td>
                                                                             <td colSpan="3" className="px-4 py-3">
@@ -1720,6 +1732,17 @@ const GridBuilder = () => {
                                                                                 onDragOver={(e) => handleGridDragOver(e, waveIndex, entry.originalIndex)}
                                                                                 onDrop={(e) => handleGridDrop(e, waveIndex, entry.originalIndex)}
                                                                             >
+                                                                                <td className="px-2 py-3 whitespace-nowrap text-center">
+                                                                                    <Button
+                                                                                        variant="ghost"
+                                                                                        size="sm"
+                                                                                        title="Drag to reorder"
+                                                                                        className="h-7 w-7 p-0 cursor-grab text-gray-400 hover:text-gray-600"
+                                                                                        tabIndex={-1}
+                                                                                    >
+                                                                                        <GripVertical className="h-3 w-3" />
+                                                                                    </Button>
+                                                                                </td>
                                                                                 <td className="px-4 py-3 whitespace-nowrap">
                                                                                     <div className="flex items-center">
                                                                                         <span className="text-sm font-medium text-gray-900">
@@ -1778,6 +1801,7 @@ const GridBuilder = () => {
                                                                                 </td>
                                                                                 <td className="px-4 py-3 whitespace-nowrap text-center">
                                                                                     <div className="flex items-center justify-center space-x-1">
+                                                                                        {/* Driver Position Controls */}
                                                                                         <Button
                                                                                             variant="ghost"
                                                                                             size="sm"
@@ -1785,17 +1809,19 @@ const GridBuilder = () => {
                                                                                             title="Move to start of wave"
                                                                                             className="h-7 w-7 p-0"
                                                                                         >
-                                                                                            <ChevronUp className="h-3 w-3" />
+                                                                                            <ArrowUpToLine className="h-3 w-3" />
                                                                                         </Button>
-                                                                                        <Button
-                                                                                            variant="ghost"
-                                                                                            size="sm"
-                                                                                            onClick={() => moveToEndOfClass(waveIndex, entry.originalIndex)}
-                                                                                            title="Move to end of class"
-                                                                                            className="h-7 w-7 p-0"
-                                                                                        >
-                                                                                            <ArrowDownFromLine className="h-3 w-3" />
-                                                                                        </Button>
+                                                                                        {wave.config.groupByClass && (
+                                                                                            <Button
+                                                                                                variant="ghost"
+                                                                                                size="sm"
+                                                                                                onClick={() => moveToEndOfClass(waveIndex, entry.originalIndex)}
+                                                                                                title="Move to end of class"
+                                                                                                className="h-7 w-7 p-0"
+                                                                                            >
+                                                                                                <ArrowDownFromLine className="h-3 w-3" />
+                                                                                            </Button>
+                                                                                        )}
                                                                                         <Button
                                                                                             variant="ghost"
                                                                                             size="sm"
@@ -1832,6 +1858,17 @@ const GridBuilder = () => {
                                                                             onDragOver={(e) => handleGridDragOver(e, waveIndex, entryIndex)}
                                                                             onDrop={(e) => handleGridDrop(e, waveIndex, entryIndex)}
                                                                         >
+                                                                            <td className="px-2 py-4 whitespace-nowrap text-center">
+                                                                                <Button
+                                                                                    variant="ghost"
+                                                                                    size="sm"
+                                                                                    title="Drag to reorder"
+                                                                                    className="h-8 w-8 p-0 cursor-grab text-gray-400 hover:text-gray-600"
+                                                                                    tabIndex={-1}
+                                                                                >
+                                                                                    <GripVertical className="h-4 w-4" />
+                                                                                </Button>
+                                                                            </td>
                                                                             <td className="px-4 py-4 whitespace-nowrap">
                                                                                 <div className="flex items-center">
                                                                                     <span className="text-sm font-medium text-gray-900">
@@ -1890,33 +1927,7 @@ const GridBuilder = () => {
                                                                             </td>
                                                                             <td className="px-4 py-4 whitespace-nowrap text-center">
                                                                                 <div className="flex items-center justify-center space-x-1">
-                                                                                    <Button
-                                                                                        variant="ghost"
-                                                                                        size="sm"
-                                                                                        onClick={() => moveClassUp(waveIndex, entry.Class)}
-                                                                                        title="Move class up"
-                                                                                        className="h-8 w-8 p-0"
-                                                                                    >
-                                                                                        <ChevronUp className="h-4 w-4" />
-                                                                                    </Button>
-                                                                                    <Button
-                                                                                        variant="ghost"
-                                                                                        size="sm"
-                                                                                        onClick={() => moveClassDown(waveIndex, entry.Class)}
-                                                                                        title="Move class down"
-                                                                                        className="h-8 w-8 p-0"
-                                                                                    >
-                                                                                        <ChevronDown className="h-4 w-4" />
-                                                                                    </Button>
-                                                                                    <Button
-                                                                                        variant="ghost"
-                                                                                        size="sm"
-                                                                                        onClick={() => mergeClassWithPrevious(waveIndex, entryIndex)}
-                                                                                        title="Merge with previous class"
-                                                                                        className="h-8 w-8 p-0"
-                                                                                    >
-                                                                                        <Merge className="h-4 w-4" />
-                                                                                    </Button>
+                                                                                    {/* Driver Position Controls */}
                                                                                     <Button
                                                                                         variant="ghost"
                                                                                         size="sm"
@@ -1924,17 +1935,19 @@ const GridBuilder = () => {
                                                                                         title="Move to start of wave"
                                                                                         className="h-8 w-8 p-0"
                                                                                     >
-                                                                                        <ChevronUp className="h-4 w-4" />
+                                                                                        <ArrowUpToLine className="h-4 w-4" />
                                                                                     </Button>
-                                                                                    <Button
-                                                                                        variant="ghost"
-                                                                                        size="sm"
-                                                                                        onClick={() => moveToEndOfClass(waveIndex, entryIndex)}
-                                                                                        title="Move to end of class"
-                                                                                        className="h-8 w-8 p-0"
-                                                                                    >
-                                                                                        <ArrowDownFromLine className="h-4 w-4" />
-                                                                                    </Button>
+                                                                                    {wave.config.groupByClass && (
+                                                                                        <Button
+                                                                                            variant="ghost"
+                                                                                            size="sm"
+                                                                                            onClick={() => moveToEndOfClass(waveIndex, entryIndex)}
+                                                                                            title="Move to end of class"
+                                                                                            className="h-8 w-8 p-0"
+                                                                                        >
+                                                                                            <ArrowDownFromLine className="h-4 w-4" />
+                                                                                        </Button>
+                                                                                    )}
                                                                                     <Button
                                                                                         variant="ghost"
                                                                                         size="sm"
@@ -2351,7 +2364,7 @@ const GridBuilder = () => {
             
             {/* Version display in bottom-right corner */}
             <div className="fixed bottom-4 right-4 text-xs text-gray-400">
-                v0.6.14
+                v0.6.19
             </div>
         </div>
     );

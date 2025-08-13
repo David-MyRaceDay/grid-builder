@@ -302,14 +302,16 @@ export const consolidateDriverData = (allParsedData) => {
     // Process each file's data
     allParsedData.forEach((fileData, fileIndex) => {
         fileData.data.forEach(entry => {
-            if (!entry.Driver || !entry.Number) return;
+            // Handle both standard CSV format (Number) and laptimes format (No.)
+            const driverNumber = entry.Number || entry['No.'];
+            if (!entry.Driver || !driverNumber) return;
             
-            const driverKey = `${entry.Driver}-${entry.Number}`;
+            const driverKey = `${entry.Driver}-${driverNumber}`;
             
             if (!driverMap.has(driverKey)) {
                 driverMap.set(driverKey, {
                     name: entry.Driver,
-                    number: entry.Number,
+                    number: driverNumber,
                     class: entry.Class,
                     files: [],
                     bestOverallTime: null,

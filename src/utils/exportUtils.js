@@ -169,76 +169,75 @@ export const generatePDF = (finalGrid, gridName) => {
 };
 
 /**
- * Generates a CSV file of the starting grid
+ * Generates a CSV file of the starting grid in the original pre-refactor format
  * @param {Array} finalGrid - Array of wave objects with entries
  * @param {string} gridName - Name of the grid for the filename
  * @returns {void} Downloads CSV file
  */
 export const generateCSV = (finalGrid, gridName) => {
-    const csvData = [];
+    const csvLines = [];
     let currentPosition = 1;
     
-    // Headers
-    csvData.push(['Position', 'Wave', 'Number', 'Driver', 'Class', 'Best Time', 'Start Type', 'Wave Description']);
+    // Grid title (quoted)
+    csvLines.push(`"${gridName || 'race grid'}"`);
+    
+    // Empty line
+    csvLines.push('');
+    
+    // Column headers (all quoted to match target format)
+    csvLines.push('"Grid Position","Wave","Car Number","Driver","Class","Best Time"');
+    
+    // Empty line
+    csvLines.push('');
     
     finalGrid.forEach((wave, waveIndex) => {
-        const waveDescription = generatePDFWaveDescription(wave.config);
+        // Wave header with start type
+        const waveHeader = `"WAVE ${waveIndex + 1} - ${wave.config.startType.toUpperCase()} START"`;
+        csvLines.push(waveHeader);
+        
+        // Empty line after wave header
+        csvLines.push('');
         
         // Add entries
         wave.entries.forEach((entry) => {
             if (entry.isEmpty) {
-                csvData.push([
-                    currentPosition,
-                    waveIndex + 1,
-                    '',
-                    'EMPTY POSITION',
-                    '',
-                    '',
-                    wave.config.startType.toUpperCase(),
-                    waveDescription
-                ]);
+                // For empty positions, use empty quotes for most fields
+                csvLines.push(`"${currentPosition}","${waveIndex + 1}","","EMPTY POSITION","",""`);
             } else {
-                csvData.push([
-                    currentPosition,
-                    waveIndex + 1,
-                    entry.Number || '',
-                    entry.Driver || '',
-                    entry.Class || '',
-                    entry.BestTime || '',
-                    wave.config.startType.toUpperCase(),
-                    waveDescription
-                ]);
+                // Format each field with quotes for consistency
+                const gridPos = `"${currentPosition}"`;
+                const waveNum = `"${waveIndex + 1}"`;
+                const carNum = `"${entry.Number || ''}"`;
+                const driver = `"${entry.Driver || ''}"`;
+                const driverClass = `"${entry.Class || ''}"`;
+                const bestTime = `"${entry.BestTime || ''}"`;
+                
+                csvLines.push(`${gridPos},${waveNum},${carNum},${driver},${driverClass},${bestTime}`);
             }
             currentPosition++;
         });
         
         // Add empty positions after wave
         for (let i = 0; i < (wave.emptyPositions || 0); i++) {
-            csvData.push([
-                currentPosition,
-                waveIndex + 1,
-                '',
-                'EMPTY POSITION',
-                '',
-                '',
-                wave.config.startType.toUpperCase(),
-                waveDescription
-            ]);
+            csvLines.push(`"${currentPosition}","${waveIndex + 1}","","EMPTY POSITION","",""`);
             currentPosition++;
+        }
+        
+        // Empty line after wave (except for last wave)
+        if (waveIndex < finalGrid.length - 1) {
+            csvLines.push('');
         }
     });
     
-    // Convert to CSV string
-    const csvContent = csvData.map(row => 
-        row.map(field => {
-            // Escape quotes and wrap in quotes if needed
-            const fieldStr = String(field || '');
-            if (fieldStr.includes(',') || fieldStr.includes('"') || fieldStr.includes('\n')) {
-                return `"${fieldStr.replace(/"/g, '""')}"`;
-            }
-            return fieldStr;
-        }).join(',')
-    ).join('\n');
+    // Empty line before timestamp
+    csvLines.push('');
+    
+    // Generation timestamp (quoted)
+    const timestamp = new Date().toLocaleString();
+    csvLines.push(`"Generated: ${timestamp}"`);
+    
+    // Join all lines with newlines
+    const csvContent = csvLines.join('\n');
     
     // Download the CSV
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
