@@ -99,56 +99,43 @@ export const generatePDF = (finalGrid, gridName) => {
         doc.setFontSize(12);
         doc.setFont(undefined, 'bold');
         doc.text('Pos', 20, yPosition);
-        doc.text('No.', 50, yPosition);
-        doc.text('Driver', 80, yPosition);
-        doc.text('Class', 140, yPosition);
-        doc.text('Best Time', 170, yPosition);
+        doc.text('No.', 45, yPosition);
+        doc.text('Driver', 70, yPosition);
+        doc.text('Class', 130, yPosition);
+        doc.text('Best Time', 180, yPosition);
         yPosition += 5;
         
         // Draw header line
-        doc.line(20, yPosition, 200, yPosition);
+        doc.line(20, yPosition, 210, yPosition);
         yPosition += 5;
         
-        // Entries
+        // Entries (skip empty positions but maintain position numbering)
         doc.setFont(undefined, 'normal');
         wave.entries.forEach((entry) => {
+            if (entry.isEmpty) {
+                // Skip empty positions but still increment position counter
+                currentPosition++;
+                return;
+            }
+            
             // Check if we need a new page
             if (yPosition > 270) {
                 doc.addPage();
                 yPosition = 30;
             }
             
-            if (entry.isEmpty) {
-                doc.setFont(undefined, 'italic');
-                doc.text('--', 20, yPosition);
-                doc.text('Empty Position', 80, yPosition);
-                doc.setFont(undefined, 'normal');
-            } else {
-                doc.text(currentPosition.toString(), 20, yPosition);
-                doc.text(entry.Number || '', 50, yPosition);
-                doc.text(entry.Driver || '', 80, yPosition);
-                doc.text(entry.Class || '', 140, yPosition);
-                doc.text(entry.BestTime || '', 170, yPosition);
-            }
+            doc.text(currentPosition.toString(), 20, yPosition);
+            doc.text(entry.Number || '', 45, yPosition);
+            doc.text(entry.Driver || '', 70, yPosition);
+            doc.text(entry.Class || '', 130, yPosition);
+            doc.text(entry.BestTime || '', 180, yPosition);
             
             yPosition += 8;
             currentPosition++;
         });
         
-        // Empty positions after wave
-        for (let i = 0; i < (wave.emptyPositions || 0); i++) {
-            if (yPosition > 270) {
-                doc.addPage();
-                yPosition = 30;
-            }
-            
-            doc.setFont(undefined, 'italic');
-            doc.text('--', 20, yPosition);
-            doc.text('Empty Position', 80, yPosition);
-            doc.setFont(undefined, 'normal');
-            yPosition += 8;
-            currentPosition++;
-        }
+        // Account for empty positions after wave (increment counter but don't export)
+        currentPosition += (wave.emptyPositions || 0);
         
         yPosition += 10; // Space between waves
     });
@@ -198,30 +185,28 @@ export const generateCSV = (finalGrid, gridName) => {
         // Empty line after wave header
         csvLines.push('');
         
-        // Add entries
+        // Add entries (skip empty positions but maintain position numbering)
         wave.entries.forEach((entry) => {
             if (entry.isEmpty) {
-                // For empty positions, use empty quotes for most fields
-                csvLines.push(`"${currentPosition}","${waveIndex + 1}","","EMPTY POSITION","",""`);
-            } else {
-                // Format each field with quotes for consistency
-                const gridPos = `"${currentPosition}"`;
-                const waveNum = `"${waveIndex + 1}"`;
-                const carNum = `"${entry.Number || ''}"`;
-                const driver = `"${entry.Driver || ''}"`;
-                const driverClass = `"${entry.Class || ''}"`;
-                const bestTime = `"${entry.BestTime || ''}"`;
-                
-                csvLines.push(`${gridPos},${waveNum},${carNum},${driver},${driverClass},${bestTime}`);
+                // Skip empty positions but still increment position counter
+                currentPosition++;
+                return;
             }
+            
+            // Format each field with quotes for consistency
+            const gridPos = `"${currentPosition}"`;
+            const waveNum = `"${waveIndex + 1}"`;
+            const carNum = `"${entry.Number || ''}"`;
+            const driver = `"${entry.Driver || ''}"`;
+            const driverClass = `"${entry.Class || ''}"`;
+            const bestTime = `"${entry.BestTime || ''}"`;
+            
+            csvLines.push(`${gridPos},${waveNum},${carNum},${driver},${driverClass},${bestTime}`);
             currentPosition++;
         });
         
-        // Add empty positions after wave
-        for (let i = 0; i < (wave.emptyPositions || 0); i++) {
-            csvLines.push(`"${currentPosition}","${waveIndex + 1}","","EMPTY POSITION","",""`);
-            currentPosition++;
-        }
+        // Account for empty positions after wave (increment counter but don't export)
+        currentPosition += (wave.emptyPositions || 0);
         
         // Empty line after wave (except for last wave)
         if (waveIndex < finalGrid.length - 1) {

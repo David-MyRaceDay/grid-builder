@@ -28,7 +28,7 @@ export const initializeWaveConfigs = (waveCount, defaultWaveSpacing, hasMultiple
             sortBy: defaultSortBy,
             gridOrder: 'straight',
             invertOrder: false,
-            invertAll: false,
+            invertAll: true,
             invertCount: 2,
             emptyPositions: i < waveCount - 1 ? defaultWaveSpacing : 0,
             emptyPositionsBetweenClasses: 0,

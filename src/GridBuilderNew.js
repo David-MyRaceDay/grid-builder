@@ -19,7 +19,6 @@ import {
   Plus,
   Minus,
   Merge,
-  MoveVertical,
   ArrowDownToLine,
   ArrowDownFromLine,
   ArrowUpToLine,
@@ -40,9 +39,6 @@ import {
     getCarCountInWave,
     getAssignedClasses,
     detectTies,
-    getClassOrder,
-    getMergedClassDisplay,
-    mergeClassWithPrevious as mergeClassEntries
 } from './utils/gridBuilder.js';
 import { 
     generatePDF, 
@@ -63,9 +59,6 @@ import { cn } from './lib/utils';
 
 // Import SVG icons
 import racingFlag from './assets/racing-flag.svg';
-import minus3Icon from './assets/minus_3.svg';
-import minus1Icon from './assets/minus_1.svg';
-import mergeIcon from './assets/merge.svg';
 
 const GridBuilder = () => {
     const [currentStep, setCurrentStep] = useState(1);
@@ -1419,7 +1412,7 @@ const GridBuilder = () => {
                                                                                     type="radio"
                                                                                     id={`invert-count-${idx}`}
                                                                                     name={`invert-type-${idx}`}
-                                                                                    checked={!config.invertAll && config.invertCount > 0}
+                                                                                    checked={!config.invertAll}
                                                                                     className="h-4 w-4 text-primary focus:ring-primary"
                                                                                     onChange={() => {
                                                                                         updateWaveConfig(idx, 'invertAll', false);
@@ -1710,7 +1703,7 @@ const GridBuilder = () => {
                                                                             </td>
                                                                             <td colSpan="3" className="px-4 py-3">
                                                                                 <div className="text-xs text-gray-500 text-right">
-                                                                                    Positions: {currentPosition} - {currentPosition + classData.entries.length - 1}
+                                                                                    Positions: {(() => { const startPos = currentPosition; return `${startPos} - ${startPos + classData.entries.length - 1}`; })()}
                                                                                 </div>
                                                                             </td>
                                                                         </tr>
@@ -1844,7 +1837,6 @@ const GridBuilder = () => {
                                                                 // Original ungrouped layout
                                                                 return wave.entries.map((entry, entryIndex) => {
                                                                     const isTied = tiedPositions.has(entryIndex);
-                                                                    const mergedGroup = mergedClasses.get(waveIndex)?.get(entry.Class);
                                                                     
                                                                     return (
                                                                         <tr 
@@ -2364,7 +2356,7 @@ const GridBuilder = () => {
             
             {/* Version display in bottom-right corner */}
             <div className="fixed bottom-4 right-4 text-xs text-gray-400">
-                v0.6.19
+                v0.6.20
             </div>
         </div>
     );
