@@ -6,7 +6,7 @@
 import jsPDF from 'jspdf';
 
 /**
- * Generates a wave description string for display
+ * Generates a wave description string for display (UI only)
  * @param {Object} config - Wave configuration object
  * @returns {string} Formatted description string
  */
@@ -46,6 +46,21 @@ export const generateWaveDescription = (config) => {
 };
 
 /**
+ * Generates a simple wave description for PDF export (no sorting details)
+ * @param {Object} config - Wave configuration object
+ * @returns {string} Simple description string for PDF
+ */
+export const generatePDFWaveDescription = (config) => {
+    const descriptions = [];
+    
+    if (config.classes && config.classes.length > 0) {
+        descriptions.push(`Classes: ${config.classes.join(', ')}`);
+    }
+    
+    return descriptions.join(' • ');
+};
+
+/**
  * Generates a PDF file of the starting grid
  * @param {Array} finalGrid - Array of wave objects with entries
  * @param {string} gridName - Name of the grid for the title
@@ -69,25 +84,29 @@ export const generatePDF = (finalGrid, gridName) => {
         doc.text(waveTitle, 20, yPosition);
         yPosition += 10;
         
-        // Wave description
+        // Wave description (simplified for PDF)
         doc.setFontSize(10);
         doc.setFont(undefined, 'normal');
-        const description = generateWaveDescription(wave.config);
-        doc.text(description, 20, yPosition);
-        yPosition += 15;
+        const description = generatePDFWaveDescription(wave.config);
+        if (description) {
+            doc.text(description, 20, yPosition);
+            yPosition += 15;
+        } else {
+            yPosition += 5; // Less space when no description
+        }
         
-        // Table headers
+        // Table headers with improved spacing
         doc.setFontSize(12);
         doc.setFont(undefined, 'bold');
         doc.text('Pos', 20, yPosition);
-        doc.text('No.', 45, yPosition);
-        doc.text('Driver', 70, yPosition);
-        doc.text('Class', 130, yPosition);
-        doc.text('Best Time', 160, yPosition);
+        doc.text('No.', 50, yPosition);
+        doc.text('Driver', 80, yPosition);
+        doc.text('Class', 140, yPosition);
+        doc.text('Best Time', 170, yPosition);
         yPosition += 5;
         
         // Draw header line
-        doc.line(20, yPosition, 190, yPosition);
+        doc.line(20, yPosition, 200, yPosition);
         yPosition += 5;
         
         // Entries
@@ -102,14 +121,14 @@ export const generatePDF = (finalGrid, gridName) => {
             if (entry.isEmpty) {
                 doc.setFont(undefined, 'italic');
                 doc.text('--', 20, yPosition);
-                doc.text('Empty Position', 70, yPosition);
+                doc.text('Empty Position', 80, yPosition);
                 doc.setFont(undefined, 'normal');
             } else {
                 doc.text(currentPosition.toString(), 20, yPosition);
-                doc.text(entry.Number || '', 45, yPosition);
-                doc.text(entry.Driver || '', 70, yPosition);
-                doc.text(entry.Class || '', 130, yPosition);
-                doc.text(entry.BestTime || '', 160, yPosition);
+                doc.text(entry.Number || '', 50, yPosition);
+                doc.text(entry.Driver || '', 80, yPosition);
+                doc.text(entry.Class || '', 140, yPosition);
+                doc.text(entry.BestTime || '', 170, yPosition);
             }
             
             yPosition += 8;
@@ -125,7 +144,7 @@ export const generatePDF = (finalGrid, gridName) => {
             
             doc.setFont(undefined, 'italic');
             doc.text('--', 20, yPosition);
-            doc.text('Empty Position', 70, yPosition);
+            doc.text('Empty Position', 80, yPosition);
             doc.setFont(undefined, 'normal');
             yPosition += 8;
             currentPosition++;
@@ -163,7 +182,7 @@ export const generateCSV = (finalGrid, gridName) => {
     csvData.push(['Position', 'Wave', 'Number', 'Driver', 'Class', 'Best Time', 'Start Type', 'Wave Description']);
     
     finalGrid.forEach((wave, waveIndex) => {
-        const waveDescription = generateWaveDescription(wave.config);
+        const waveDescription = generatePDFWaveDescription(wave.config);
         
         // Add entries
         wave.entries.forEach((entry) => {

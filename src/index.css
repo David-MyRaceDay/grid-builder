@@ -15,13 +15,13 @@
     --secondary: 226 100% 65%; /* Track Blue */
     --secondary-foreground: 0 0% 100%;
     --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted-foreground: 215.4 16.3% 35%; /* Darker for better contrast */
     --accent: 30 100% 50%; /* Pit Orange */
     --accent-foreground: 0 0% 100%;
     --destructive: 0 71% 64%; /* Red Flag */
     --destructive-foreground: 0 0% 100%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --border: 214.3 31.8% 85%; /* Darker border for better visibility */
+    --input: 214.3 31.8% 85%; /* Darker input border */
     --ring: 226 100% 65%;
     --radius: 0.5rem;
   }

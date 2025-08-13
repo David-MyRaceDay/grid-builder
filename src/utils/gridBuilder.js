@@ -27,7 +27,7 @@ export const initializeWaveConfigs = (waveCount, defaultWaveSpacing, hasMultiple
             classes: [],
             sortBy: defaultSortBy,
             gridOrder: 'straight',
-            inverted: false,
+            invertOrder: false,
             invertAll: false,
             invertCount: 2,
             emptyPositions: i < waveCount - 1 ? defaultWaveSpacing : 0,
@@ -461,7 +461,7 @@ export const buildGrid = (waveConfigs, validDrivers) => {
         }
         
         // Handle grid inversion
-        if (config.inverted) {
+        if (config.invertOrder) {
             if (config.invertAll) {
                 waveData.reverse();
             } else if (config.invertCount > 0) {

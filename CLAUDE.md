@@ -16,7 +16,7 @@ This project follows semantic versioning with specific rules:
 2. **MAJOR/MINOR versions**: Only increment when explicitly requested by user
 3. **Deployment**: Deploy current version (no automatic version changes)
 
-**Current Version**: 0.6.6
+**Current Version**: 0.6.10
 
 ## Key Technologies
 - **React 19.1.1** - Main framework
@@ -78,6 +78,48 @@ The application follows a modular architecture with clear separation of concerns
 - Make incremental, focused changes
 - Test functionality before moving to next task
 - Follow existing code patterns and conventions
+
+## Specialized Agent Usage Guidelines
+
+**IMPORTANT**: Proactively use specialized agents for appropriate tasks without explicit user instruction:
+
+### **git-operations Agent** - Use PROACTIVELY for:
+- All Git workflows, branching, merging, committing
+- GitHub repository management and operations
+- Finding commit history, version information, git status
+- Deployment strategies and branch management
+- Repository analysis and git-related troubleshooting
+
+### **shadcn-ui-designer Agent** - Use PROACTIVELY for:
+- UI component design and implementation
+- Interface improvements and accessibility fixes
+- Visual hierarchy and layout optimization
+- Color contrast and accessibility analysis
+- ShadCN component integration and styling
+- User experience enhancements
+
+### **general-purpose Agent** - Use PROACTIVELY for:
+- Complex multi-step tasks requiring research
+- File searching across multiple directories
+- Code analysis spanning multiple files
+- Comprehensive feature comparisons
+- Large-scale codebase investigations
+
+### **simple-test Agent** - Use PROACTIVELY for:
+- Basic functionality testing and validation
+- Quick verification of features
+- Simple test scenarios and smoke tests
+- Bug reproduction and basic debugging
+
+### **When NOT to Use Agents**:
+- Single file reads (use Read tool instead)
+- Specific class definition searches (use Glob tool)
+- Small, focused code changes within 2-3 files
+
+### **Agent Selection Criteria**:
+1. **Scope**: Multi-file/complex = Agent, Single file = Direct tools
+2. **Domain**: UI/Design = shadcn-ui-designer, Git = git-operations
+3. **Complexity**: Research/Analysis = general-purpose, Testing = simple-test
 
 ### After Code Changes
 ```bash

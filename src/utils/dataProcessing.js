@@ -396,6 +396,9 @@ export const consolidateDriverData = (allParsedData) => {
             driver.averagePositionInClass = sum / driver.positionsInClass.length;
         }
         
+        // Add fileCount property for compatibility
+        driver.fileCount = driver.files.length;
+        
         return driver;
     });
     

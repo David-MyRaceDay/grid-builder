@@ -19,13 +19,16 @@ import {
   Plus,
   Minus,
   Merge,
-  MoveVertical
+  MoveVertical,
+  ArrowDownToLine,
+  ArrowDownFromLine
 } from 'lucide-react';
 
 // Import utility modules
 import { 
     parseCSV, 
-    consolidateDriverData
+    consolidateDriverData,
+    parseTimeToSeconds
 } from './utils/dataProcessing.js';
 import { 
     initializeWaveConfigs,
@@ -479,33 +482,71 @@ const GridBuilder = () => {
         
         const waveMerged = newMergedClasses.get(waveIndex);
         
-        // If current class is already merged, extend that group
-        let mergeGroup;
-        if (waveMerged.has(currentClass)) {
-            mergeGroup = waveMerged.get(currentClass);
-        } else {
-            mergeGroup = [currentClass];
-        }
+        // Get existing merge groups for both classes
+        let prevMergeGroup = waveMerged.get(prevClass) || [prevClass];
+        let currentMergeGroup = waveMerged.get(currentClass) || [currentClass];
         
-        // Add previous class to the group if not already there
-        if (!mergeGroup.includes(prevClass)) {
-            mergeGroup.unshift(prevClass);
-        }
+        // Combine the groups (prev group first, then current group)
+        const combinedGroup = [...new Set([...prevMergeGroup, ...currentMergeGroup])];
         
-        // Update all classes in the group to reference the same merge group
-        mergeGroup.forEach(cls => {
-            waveMerged.set(cls, mergeGroup);
+        // Update all classes in the combined group to reference the same merge group
+        combinedGroup.forEach(cls => {
+            waveMerged.set(cls, combinedGroup);
         });
         
         setMergedClasses(newMergedClasses);
         
-        // Change all entries of current class to previous class
+        // Store original classes for preservation
         newGrid[waveIndex].entries.forEach(entry => {
-            if (entry.Class === currentClass) {
-                entry.Class = prevClass;
+            if (!entry.originalClass) {
+                entry.originalClass = entry.Class;
             }
         });
         
+        // Get all entries from both classes for re-sorting
+        const prevClassEntries = newGrid[waveIndex].entries.filter(entry => 
+            (entry.originalClass || entry.Class) === prevClass
+        );
+        const currentClassEntries = newGrid[waveIndex].entries.filter(entry => 
+            (entry.originalClass || entry.Class) === currentClass
+        );
+        
+        // Combine and sort the merged entries based on wave configuration
+        const mergedEntries = [...prevClassEntries, ...currentClassEntries];
+        const waveConfig = newGrid[waveIndex].config;
+        
+        // Apply sorting based on wave config
+        mergedEntries.sort((a, b) => {
+            return getSortComparison(a, b, waveConfig);
+        });
+        
+        // Handle grid order inversion if needed
+        if (waveConfig.gridOrder === 'slowestFirst') {
+            mergedEntries.reverse();
+        }
+        
+        // Change class display for merged entries (for grouping purposes)
+        const mergedClassName = combinedGroup[0]; // Use first class in group as display class
+        mergedEntries.forEach(entry => {
+            entry.Class = mergedClassName;
+        });
+        
+        // Reconstruct the wave entries with merged classes in their sorted position
+        const newEntries = [];
+        let mergedInserted = false;
+        
+        // Add entries in the original order, but insert merged entries where the first class was
+        newGrid[waveIndex].entries.forEach(entry => {
+            const entryOriginalClass = entry.originalClass || entry.Class;
+            if (entryOriginalClass === prevClass && !mergedInserted) {
+                newEntries.push(...mergedEntries);
+                mergedInserted = true;
+            } else if (entryOriginalClass !== prevClass && entryOriginalClass !== currentClass) {
+                newEntries.push(entry);
+            }
+        });
+        
+        newGrid[waveIndex].entries = newEntries;
         setFinalGrid(newGrid);
     };
     
@@ -553,13 +594,81 @@ const GridBuilder = () => {
         return parsedData.some(driver => driver.fileCount > 1);
     };
     
+    // Helper function to get the sort criteria value for display
+    const getSortCriteriaValue = (entry, sortBy) => {
+        switch (sortBy) {
+            case 'position':
+                return entry.originalDriver?.bestPosition ? `P${entry.originalDriver.bestPosition}` : 'N/A';
+            case 'bestTime':
+                return entry.BestTime || '--:--';
+            case 'secondBest':
+                return entry.originalDriver?.secondBestOverallTime?.time || '--:--';
+            case 'pointsTotal':
+                return entry.originalDriver?.totalPoints > 0 ? `${entry.originalDriver.totalPoints} pts` : 'N/A';
+            case 'pointsAverage':
+                return entry.originalDriver?.averagePoints > 0 ? `${entry.originalDriver.averagePoints.toFixed(1)} avg` : 'N/A';
+            default:
+                return 'N/A';
+        }
+    };
+    
+    // Helper function to get secondary stats (always best time unless that's the primary sort)
+    const getSecondaryStats = (entry, sortBy) => {
+        const stats = [];
+        
+        // Always show best time unless it's the primary sort criteria
+        if (sortBy !== 'bestTime' && entry.BestTime) {
+            stats.push(`Time: ${entry.BestTime}`);
+        }
+        
+        // Show additional relevant stats
+        if (entry.originalDriver) {
+            if (entry.originalDriver.totalPoints > 0 && sortBy !== 'pointsTotal') {
+                stats.push(`Points: ${entry.originalDriver.totalPoints}`);
+            }
+            if (entry.originalDriver.bestPosition && sortBy !== 'position') {
+                stats.push(`Best Pos: ${entry.originalDriver.bestPosition}`);
+            }
+            if (entry.originalDriver.secondBestOverallTime?.time && sortBy !== 'secondBest') {
+                stats.push(`2nd Best: ${entry.originalDriver.secondBestOverallTime.time}`);
+            }
+            if (entry.originalDriver.fileCount > 1) {
+                stats.push(`Files: ${entry.originalDriver.fileCount}`);
+            }
+        }
+        
+        return stats;
+    };
+    
     const hasPositionData = () => {
         return parsedData.some(driver => 
-            driver.files && driver.files.length > 0 && 
-            driver.files[0].Pos !== undefined && 
-            driver.files[0].Pos !== null && 
-            driver.files[0].Pos !== ''
+            driver.bestPosition !== undefined && 
+            driver.bestPosition !== null && 
+            driver.bestPosition !== '' &&
+            driver.bestPosition > 0
         );
+    };
+
+    // Helper function for sort comparison used in class merging
+    const getSortComparison = (a, b, waveConfig) => {
+        switch (waveConfig.sortBy) {
+            case 'position':
+                return (a.Position || 999) - (b.Position || 999);
+            case 'bestTime':
+                return parseTimeToSeconds(a.BestTime) - parseTimeToSeconds(b.BestTime);
+            case 'secondBest':
+                return parseTimeToSeconds(a.SecondBest) - parseTimeToSeconds(b.SecondBest);
+            case 'pointsTotal':
+            case 'pointsAverage':
+                // Sort by points descending (higher is better)
+                const pointsA = a.Points || 0;
+                const pointsB = b.Points || 0;
+                if (pointsB !== pointsA) return pointsB - pointsA;
+                // Apply tie-breakers - fall back to best time
+                return parseTimeToSeconds(a.BestTime) - parseTimeToSeconds(b.BestTime);
+            default:
+                return 0;
+        }
     };
 
     return (
@@ -580,6 +689,12 @@ const GridBuilder = () => {
                                 variant="outline" 
                                 size="sm"
                                 className="border-white text-white hover:bg-white hover:text-racing-red"
+                                style={{
+                                    borderColor: '#FFFFFF',
+                                    color: '#FFFFFF',
+                                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                    borderWidth: '2px'
+                                }}
                                 onClick={() => setShowHelpModal(true)}
                             >
                                 <HelpCircle className="h-4 w-4 mr-2" />
@@ -590,6 +705,12 @@ const GridBuilder = () => {
                                     variant="outline" 
                                     size="sm"
                                     className="border-white text-white hover:bg-white hover:text-racing-red"
+                                    style={{
+                                        borderColor: '#FFFFFF',
+                                        color: '#FFFFFF',
+                                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                        borderWidth: '2px'
+                                    }}
                                     onClick={startNewGrid}
                                 >
                                     <RefreshCw className="h-4 w-4 mr-2" />
@@ -609,28 +730,60 @@ const GridBuilder = () => {
                             const Icon = step.icon;
                             const isActive = currentStep === step.num;
                             const isCompleted = currentStep > step.num;
+                            const isClickable = isActive || isCompleted;
+                            
+                            const handleStepClick = () => {
+                                if (isClickable) {
+                                    setCurrentStep(step.num);
+                                }
+                            };
                             
                             return (
                                 <div key={step.num} className="flex items-center">
-                                    <div className={cn(
-                                        "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-200",
-                                        isActive 
-                                            ? "border-racing-red bg-racing-red text-white" 
-                                            : isCompleted 
-                                                ? "border-grid-green bg-grid-green text-white"
-                                                : "border-gray-300 text-gray-400"
-                                    )}>
+                                    <div 
+                                        className={cn(
+                                            "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-200",
+                                            isActive 
+                                                ? "border-racing-red bg-racing-red text-white" 
+                                                : isCompleted 
+                                                    ? "border-grid-green bg-grid-green text-white hover:bg-green-600"
+                                                    : "border-gray-300 text-gray-400",
+                                            isClickable ? "cursor-pointer" : "cursor-default"
+                                        )}
+                                        onClick={handleStepClick}
+                                        role={isClickable ? "button" : undefined}
+                                        tabIndex={isClickable ? 0 : undefined}
+                                        aria-label={isClickable ? `Go to ${step.label}` : step.label}
+                                        onKeyDown={(e) => {
+                                            if (isClickable && (e.key === 'Enter' || e.key === ' ')) {
+                                                e.preventDefault();
+                                                handleStepClick();
+                                            }
+                                        }}
+                                    >
                                         <Icon className="h-5 w-5" />
                                     </div>
                                     <div className="ml-3">
-                                        <p className={cn(
-                                            "text-sm font-medium transition-colors duration-200",
-                                            isActive 
-                                                ? "text-racing-red" 
-                                                : isCompleted 
-                                                    ? "text-grid-green"
-                                                    : "text-gray-500"
-                                        )}>
+                                        <p 
+                                            className={cn(
+                                                "text-sm font-medium transition-colors duration-200",
+                                                isActive 
+                                                    ? "text-racing-red" 
+                                                    : isCompleted 
+                                                        ? "text-grid-green hover:text-green-600"
+                                                        : "text-gray-500",
+                                                isClickable ? "cursor-pointer" : "cursor-default"
+                                            )}
+                                            onClick={handleStepClick}
+                                            role={isClickable ? "button" : undefined}
+                                            tabIndex={isClickable ? 0 : undefined}
+                                            onKeyDown={(e) => {
+                                                if (isClickable && (e.key === 'Enter' || e.key === ' ')) {
+                                                    e.preventDefault();
+                                                    handleStepClick();
+                                                }
+                                            }}
+                                        >
                                             {step.label}
                                         </p>
                                     </div>
@@ -723,6 +876,7 @@ const GridBuilder = () => {
                                         <Button 
                                             variant="outline" 
                                             size="sm"
+                                            className="border-racing-red text-racing-red hover:bg-racing-red hover:text-white"
                                             onClick={removeAllFiles}
                                         >
                                             Clear All
@@ -743,6 +897,7 @@ const GridBuilder = () => {
                                                 <Button 
                                                     variant="ghost" 
                                                     size="sm"
+                                                    className="text-gray-500 hover:text-racing-red hover:bg-red-50"
                                                     onClick={() => removeFile(index)}
                                                 >
                                                     <X className="h-4 w-4" />
@@ -1180,30 +1335,155 @@ const GridBuilder = () => {
                                                                     </div>
                                                                     <div className="ml-6 mt-3">
                                                                         <Label htmlFor={`class-spacing-${idx}`} className="text-sm">Empty Positions Between Classes</Label>
-                                                                        <Input
-                                                                            id={`class-spacing-${idx}`}
-                                                                            type="number"
-                                                                            min="0"
-                                                                            max="5"
-                                                                            value={config.emptyPositionsBetweenClasses || 0}
-                                                                            onChange={(e) => updateWaveConfig(idx, 'emptyPositionsBetweenClasses', Math.max(0, parseInt(e.target.value) || 0))}
-                                                                            className="mt-1 w-20"
-                                                                        />
+                                                                        <div className="flex items-center gap-2 mt-1">
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="outline"
+                                                                                size="icon"
+                                                                                onClick={() => updateWaveConfig(idx, 'emptyPositionsBetweenClasses', Math.max(0, (config.emptyPositionsBetweenClasses || 0) - 1))}
+                                                                                disabled={(config.emptyPositionsBetweenClasses || 0) <= 0}
+                                                                                className="h-8 w-8"
+                                                                            >
+                                                                                <Minus className="h-3 w-3" />
+                                                                            </Button>
+                                                                            <Input
+                                                                                id={`class-spacing-${idx}`}
+                                                                                type="number"
+                                                                                min="0"
+                                                                                max="5"
+                                                                                value={config.emptyPositionsBetweenClasses || 0}
+                                                                                onChange={(e) => updateWaveConfig(idx, 'emptyPositionsBetweenClasses', Math.max(0, parseInt(e.target.value) || 0))}
+                                                                                className="w-16 text-center text-sm font-semibold"
+                                                                            />
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="outline"
+                                                                                size="icon"
+                                                                                onClick={() => updateWaveConfig(idx, 'emptyPositionsBetweenClasses', Math.min(5, (config.emptyPositionsBetweenClasses || 0) + 1))}
+                                                                                disabled={(config.emptyPositionsBetweenClasses || 0) >= 5}
+                                                                                className="h-8 w-8"
+                                                                            >
+                                                                                <Plus className="h-3 w-3" />
+                                                                            </Button>
+                                                                            <span className="text-xs text-gray-500">(0-5)</span>
+                                                                        </div>
                                                                     </div>
                                                                 </>
                                                             )}
                                                             
-                                                            <div className="flex items-center">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    id={`invert-${idx}`}
-                                                                    checked={config.invertOrder}
-                                                                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                                                                    onChange={(e) => updateWaveConfig(idx, 'invertOrder', e.target.checked)}
-                                                                />
-                                                                <Label htmlFor={`invert-${idx}`} className="ml-2 cursor-pointer">
-                                                                    Invert Order (slowest/lowest first)
-                                                                </Label>
+                                                            <div className="space-y-3">
+                                                                <div className="flex items-center">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        id={`invert-${idx}`}
+                                                                        checked={config.invertOrder}
+                                                                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                                                        onChange={(e) => {
+                                                                            const isInverting = e.target.checked;
+                                                                            updateWaveConfig(idx, 'invertOrder', isInverting);
+                                                                            if (isInverting && !config.invertAll && !config.invertCount) {
+                                                                                // Default to "Invert All" when first enabling invert
+                                                                                updateWaveConfig(idx, 'invertAll', true);
+                                                                            }
+                                                                        }}
+                                                                    />
+                                                                    <Label htmlFor={`invert-${idx}`} className="ml-2 cursor-pointer">
+                                                                        Invert Order (slowest/lowest first)
+                                                                    </Label>
+                                                                </div>
+                                                                
+                                                                {config.invertOrder && (
+                                                                    <div className="ml-6 space-y-3 p-3 bg-gray-50 rounded-lg">
+                                                                        <div className="space-y-2">
+                                                                            <div className="flex items-center gap-2">
+                                                                                <input
+                                                                                    type="radio"
+                                                                                    id={`invert-all-${idx}`}
+                                                                                    name={`invert-type-${idx}`}
+                                                                                    checked={config.invertAll}
+                                                                                    className="h-4 w-4 text-primary focus:ring-primary"
+                                                                                    onChange={() => {
+                                                                                        updateWaveConfig(idx, 'invertAll', true);
+                                                                                        updateWaveConfig(idx, 'invertCount', 0);
+                                                                                    }}
+                                                                                />
+                                                                                <Label htmlFor={`invert-all-${idx}`} className="cursor-pointer text-sm">
+                                                                                    Invert All Positions
+                                                                                </Label>
+                                                                            </div>
+                                                                            
+                                                                            <div className="flex items-center gap-2">
+                                                                                <input
+                                                                                    type="radio"
+                                                                                    id={`invert-count-${idx}`}
+                                                                                    name={`invert-type-${idx}`}
+                                                                                    checked={!config.invertAll && config.invertCount > 0}
+                                                                                    className="h-4 w-4 text-primary focus:ring-primary"
+                                                                                    onChange={() => {
+                                                                                        updateWaveConfig(idx, 'invertAll', false);
+                                                                                        if (config.invertCount === 0) {
+                                                                                            updateWaveConfig(idx, 'invertCount', 2);
+                                                                                        }
+                                                                                    }}
+                                                                                />
+                                                                                <Label htmlFor={`invert-count-${idx}`} className="cursor-pointer text-sm">
+                                                                                    Invert First:
+                                                                                </Label>
+                                                                                <div className="flex items-center gap-1 ml-2">
+                                                                                    <Button
+                                                                                        type="button"
+                                                                                        variant="outline"
+                                                                                        size="icon"
+                                                                                        onClick={() => {
+                                                                                            const newCount = Math.max(2, (config.invertCount || 2) - 1);
+                                                                                            updateWaveConfig(idx, 'invertCount', newCount);
+                                                                                            updateWaveConfig(idx, 'invertAll', false);
+                                                                                        }}
+                                                                                        disabled={config.invertAll || (config.invertCount || 2) <= 2}
+                                                                                        className="h-6 w-6"
+                                                                                    >
+                                                                                        <Minus className="h-3 w-3" />
+                                                                                    </Button>
+                                                                                    <Input
+                                                                                        type="number"
+                                                                                        min="2"
+                                                                                        max={Math.max(2, getCarCountInWave(config, parsedData))}
+                                                                                        value={config.invertCount || 2}
+                                                                                        onChange={(e) => {
+                                                                                            const value = parseInt(e.target.value);
+                                                                                            if (!isNaN(value)) {
+                                                                                                const maxCars = Math.max(2, getCarCountInWave(config, parsedData));
+                                                                                                const newCount = Math.min(maxCars, Math.max(2, value));
+                                                                                                updateWaveConfig(idx, 'invertCount', newCount);
+                                                                                                updateWaveConfig(idx, 'invertAll', false);
+                                                                                            }
+                                                                                        }}
+                                                                                        disabled={config.invertAll}
+                                                                                        className="w-12 text-center text-xs font-semibold"
+                                                                                    />
+                                                                                    <Button
+                                                                                        type="button"
+                                                                                        variant="outline"
+                                                                                        size="icon"
+                                                                                        onClick={() => {
+                                                                                            const maxCars = Math.max(2, getCarCountInWave(config, parsedData));
+                                                                                            const newCount = Math.min(maxCars, (config.invertCount || 2) + 1);
+                                                                                            updateWaveConfig(idx, 'invertCount', newCount);
+                                                                                            updateWaveConfig(idx, 'invertAll', false);
+                                                                                        }}
+                                                                                        disabled={config.invertAll || (config.invertCount || 2) >= Math.max(2, getCarCountInWave(config, parsedData))}
+                                                                                        className="h-6 w-6"
+                                                                                    >
+                                                                                        <Plus className="h-3 w-3" />
+                                                                                    </Button>
+                                                                                    <span className="text-xs text-gray-500 ml-1">
+                                                                                        (2-{Math.max(2, getCarCountInWave(config, parsedData))})
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1228,7 +1508,12 @@ const GridBuilder = () => {
                                                             <div>Class Order: <span className="font-medium">{config.classOrder}</span></div>
                                                         )}
                                                         {config.invertOrder && (
-                                                            <div className="text-pit-orange font-medium">Order will be inverted</div>
+                                                            <div className="text-pit-orange font-medium">
+                                                                {config.invertAll 
+                                                                    ? "Order will be inverted (all positions)"
+                                                                    : `Order will be inverted (first ${config.invertCount || 2} positions)`
+                                                                }
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </div>
@@ -1335,154 +1620,337 @@ const GridBuilder = () => {
                                                         </tr>
                                                     </thead>
                                                     <tbody className="bg-white divide-y divide-gray-200">
-                                                        {wave.entries.map((entry, entryIndex) => {
-                                                            const isTied = tiedPositions.has(entryIndex);
-                                                            const mergedGroup = mergedClasses.get(waveIndex)?.get(entry.Class);
-                                                            
-                                                            return (
-                                                                <tr 
-                                                                    key={entryIndex}
-                                                                    className={cn(
-                                                                        "hover:bg-gray-50 transition-colors duration-150",
-                                                                        draggedOver?.waveIndex === waveIndex && draggedOver?.entryIndex === entryIndex && "bg-blue-50"
-                                                                    )}
-                                                                    draggable
-                                                                    onDragStart={(e) => handleGridDragStart(e, waveIndex, entryIndex)}
-                                                                    onDragOver={(e) => handleGridDragOver(e, waveIndex, entryIndex)}
-                                                                    onDrop={(e) => handleGridDrop(e, waveIndex, entryIndex)}
-                                                                >
-                                                                    <td className="px-4 py-4 whitespace-nowrap">
-                                                                        <div className="flex items-center">
-                                                                            <span className="text-sm font-medium text-gray-900">
-                                                                                {entryIndex + 1 + (waveIndex * 10)} {/* Simple position calculation */}
-                                                                            </span>
-                                                                            {isTied && (
-                                                                                <div 
-                                                                                    className="ml-2 w-2 h-2 rounded-full bg-caution-yellow"
-                                                                                    title="Tied position - drivers have same sorting value"
-                                                                                />
-                                                                            )}
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="px-4 py-4 whitespace-nowrap">
-                                                                        <span className="text-sm font-medium text-gray-900">
-                                                                            {entry.Number || '?'}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-4 py-4 whitespace-nowrap">
-                                                                        <span className="text-sm text-gray-900">
-                                                                            {entry.Driver || 'TBD'}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-4 py-4 whitespace-nowrap">
-                                                                        <div className="flex items-center">
-                                                                            <Badge 
-                                                                                variant="secondary"
-                                                                                className="bg-track-blue text-white"
-                                                                                style={{
-                                                                                    backgroundColor: '#4B7BFF',
-                                                                                    color: 'white'
-                                                                                }}
+                                                        {(() => {
+                                                            if (wave.config.groupByClass) {
+                                                                // Group entries by class when groupByClass is enabled
+                                                                const groupedEntries = new Map();
+                                                                let positionCounter = 1;
+                                                                
+                                                                wave.entries.forEach((entry, entryIndex) => {
+                                                                    if (!groupedEntries.has(entry.Class)) {
+                                                                        groupedEntries.set(entry.Class, {
+                                                                            entries: [],
+                                                                            startPosition: positionCounter
+                                                                        });
+                                                                    }
+                                                                    groupedEntries.get(entry.Class).entries.push({ ...entry, originalIndex: entryIndex });
+                                                                    positionCounter++;
+                                                                });
+                                                                
+                                                                const rows = [];
+                                                                let currentPosition = 1;
+                                                                
+                                                                for (const [className, classData] of groupedEntries) {
+                                                                    const mergedGroup = mergedClasses.get(waveIndex)?.get(className);
+                                                                    const isFirstClassInWave = currentPosition === 1;
+                                                                    
+                                                                    // Class Header Row
+                                                                    rows.push(
+                                                                        <tr key={`class-header-${className}`} className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
+                                                                            <td colSpan="4" className="px-4 py-3">
+                                                                                <div className="flex items-center justify-between">
+                                                                                    <div className="flex items-center gap-3">
+                                                                                        <Badge 
+                                                                                            className="bg-track-blue text-white text-sm font-semibold px-3 py-1"
+                                                                                            style={{
+                                                                                                backgroundColor: '#4B7BFF',
+                                                                                                color: 'white'
+                                                                                            }}
+                                                                                        >
+                                                                                            {mergedGroup && mergedGroup.length > 1 ? mergedGroup.join(' / ') : className}
+                                                                                        </Badge>
+                                                                                        <span className="text-sm text-gray-600 font-medium">
+                                                                                            {classData.entries.length} {classData.entries.length === 1 ? 'driver' : 'drivers'}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <div className="flex items-center gap-1">
+                                                                                        <Button
+                                                                                            variant="ghost"
+                                                                                            size="sm"
+                                                                                            onClick={() => moveClassUp(waveIndex, className)}
+                                                                                            title="Move class up"
+                                                                                            className="h-8 w-8 p-0 hover:bg-white hover:border hover:border-gray-300"
+                                                                                            disabled={isFirstClassInWave}
+                                                                                        >
+                                                                                            <ChevronUp className="h-4 w-4" />
+                                                                                        </Button>
+                                                                                        <Button
+                                                                                            variant="ghost"
+                                                                                            size="sm"
+                                                                                            onClick={() => moveClassDown(waveIndex, className)}
+                                                                                            title="Move class down"
+                                                                                            className="h-8 w-8 p-0 hover:bg-white hover:border hover:border-gray-300"
+                                                                                        >
+                                                                                            <ChevronDown className="h-4 w-4" />
+                                                                                        </Button>
+                                                                                        <Button
+                                                                                            variant="ghost"
+                                                                                            size="sm"
+                                                                                            onClick={() => mergeClassWithPrevious(waveIndex, classData.entries[0].originalIndex)}
+                                                                                            title="Merge with previous class"
+                                                                                            className="h-8 w-8 p-0 hover:bg-white hover:border hover:border-gray-300"
+                                                                                            disabled={isFirstClassInWave}
+                                                                                        >
+                                                                                            <Merge className="h-4 w-4" />
+                                                                                        </Button>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </td>
+                                                                            <td colSpan="3" className="px-4 py-3">
+                                                                                <div className="text-xs text-gray-500 text-right">
+                                                                                    Positions: {currentPosition} - {currentPosition + classData.entries.length - 1}
+                                                                                </div>
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                    
+                                                                    // Driver Rows for this class
+                                                                    classData.entries.forEach((entry, classEntryIndex) => {
+                                                                        const isTied = tiedPositions.has(entry.originalIndex);
+                                                                        
+                                                                        rows.push(
+                                                                            <tr 
+                                                                                key={entry.originalIndex}
+                                                                                className={cn(
+                                                                                    "hover:bg-gray-50 transition-colors duration-150",
+                                                                                    draggedOver?.waveIndex === waveIndex && draggedOver?.entryIndex === entry.originalIndex && "bg-blue-50"
+                                                                                )}
+                                                                                draggable
+                                                                                onDragStart={(e) => handleGridDragStart(e, waveIndex, entry.originalIndex)}
+                                                                                onDragOver={(e) => handleGridDragOver(e, waveIndex, entry.originalIndex)}
+                                                                                onDrop={(e) => handleGridDrop(e, waveIndex, entry.originalIndex)}
                                                                             >
-                                                                                {entry.Class}
-                                                                            </Badge>
-                                                                            {mergedGroup && mergedGroup.length > 1 && (
-                                                                                <Badge 
-                                                                                    variant="outline" 
-                                                                                    className="ml-2 text-xs"
-                                                                                    title={`Merged from: ${mergedGroup.join(', ')}`}
-                                                                                >
-                                                                                    Merged
-                                                                                </Badge>
+                                                                                <td className="px-4 py-3 whitespace-nowrap">
+                                                                                    <div className="flex items-center">
+                                                                                        <span className="text-sm font-medium text-gray-900">
+                                                                                            {currentPosition}
+                                                                                        </span>
+                                                                                        {isTied && (
+                                                                                            <div 
+                                                                                                className="ml-2 w-2 h-2 rounded-full bg-caution-yellow"
+                                                                                                title="Tied position - drivers have same sorting value"
+                                                                                            />
+                                                                                        )}
+                                                                                    </div>
+                                                                                </td>
+                                                                                <td className="px-4 py-3 whitespace-nowrap">
+                                                                                    <span className="text-sm font-medium text-gray-900">
+                                                                                        {entry.Number || '?'}
+                                                                                    </span>
+                                                                                </td>
+                                                                                <td className="px-4 py-3 whitespace-nowrap">
+                                                                                    <span className="text-sm text-gray-900">
+                                                                                        {entry.Driver || 'TBD'}
+                                                                                    </span>
+                                                                                </td>
+                                                                                <td className="px-4 py-3 whitespace-nowrap">
+                                                                                    <div className="flex items-center">
+                                                                                        <Badge 
+                                                                                            variant="secondary"
+                                                                                            className="bg-track-blue text-white"
+                                                                                            style={{
+                                                                                                backgroundColor: '#4B7BFF',
+                                                                                                color: 'white'
+                                                                                            }}
+                                                                                        >
+                                                                                            {entry.originalClass || entry.Class}
+                                                                                        </Badge>
+                                                                                    </div>
+                                                                                </td>
+                                                                                <td className="px-4 py-3 whitespace-nowrap">
+                                                                                    <span className="text-sm text-gray-900 font-mono">
+                                                                                        {entry.BestTime || '--:--'}
+                                                                                    </span>
+                                                                                </td>
+                                                                                <td className="px-4 py-3 whitespace-nowrap">
+                                                                                    <div className="text-xs">
+                                                                                        {/* Primary sort criteria value */}
+                                                                                        <div className="font-medium text-gray-900 mb-1">
+                                                                                            {getSortCriteriaValue(entry, wave.config.sortBy)}
+                                                                                        </div>
+                                                                                        {/* Secondary stats */}
+                                                                                        <div className="text-gray-500 space-y-1">
+                                                                                            {getSecondaryStats(entry, wave.config.sortBy).map((stat, statIndex) => (
+                                                                                                <div key={statIndex}>{stat}</div>
+                                                                                            ))}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </td>
+                                                                                <td className="px-4 py-3 whitespace-nowrap text-center">
+                                                                                    <div className="flex items-center justify-center space-x-1">
+                                                                                        <Button
+                                                                                            variant="ghost"
+                                                                                            size="sm"
+                                                                                            onClick={() => moveToStartOfWave(waveIndex, entry.originalIndex)}
+                                                                                            title="Move to start of wave"
+                                                                                            className="h-7 w-7 p-0"
+                                                                                        >
+                                                                                            <ChevronUp className="h-3 w-3" />
+                                                                                        </Button>
+                                                                                        <Button
+                                                                                            variant="ghost"
+                                                                                            size="sm"
+                                                                                            onClick={() => moveToEndOfClass(waveIndex, entry.originalIndex)}
+                                                                                            title="Move to end of class"
+                                                                                            className="h-7 w-7 p-0"
+                                                                                        >
+                                                                                            <ArrowDownFromLine className="h-3 w-3" />
+                                                                                        </Button>
+                                                                                        <Button
+                                                                                            variant="ghost"
+                                                                                            size="sm"
+                                                                                            onClick={() => moveToEndOfWave(waveIndex, entry.originalIndex)}
+                                                                                            title="Move to end of wave"
+                                                                                            className="h-7 w-7 p-0"
+                                                                                        >
+                                                                                            <ArrowDownToLine className="h-3 w-3" />
+                                                                                        </Button>
+                                                                                    </div>
+                                                                                </td>
+                                                                            </tr>
+                                                                        );
+                                                                        currentPosition++;
+                                                                    });
+                                                                }
+                                                                
+                                                                return rows;
+                                                            } else {
+                                                                // Original ungrouped layout
+                                                                return wave.entries.map((entry, entryIndex) => {
+                                                                    const isTied = tiedPositions.has(entryIndex);
+                                                                    const mergedGroup = mergedClasses.get(waveIndex)?.get(entry.Class);
+                                                                    
+                                                                    return (
+                                                                        <tr 
+                                                                            key={entryIndex}
+                                                                            className={cn(
+                                                                                "hover:bg-gray-50 transition-colors duration-150",
+                                                                                draggedOver?.waveIndex === waveIndex && draggedOver?.entryIndex === entryIndex && "bg-blue-50"
                                                                             )}
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="px-4 py-4 whitespace-nowrap">
-                                                                        <span className="text-sm text-gray-900 font-mono">
-                                                                            {entry.BestTime || '--:--'}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-4 py-4 whitespace-nowrap">
-                                                                        <div className="text-xs text-gray-500">
-                                                                            {entry.originalDriver && (
-                                                                                <div className="space-y-1">
-                                                                                    {entry.originalDriver.totalPoints > 0 && (
-                                                                                        <div>Points: {entry.originalDriver.totalPoints}</div>
-                                                                                    )}
-                                                                                    {entry.originalDriver.bestPosition && (
-                                                                                        <div>Best Pos: {entry.originalDriver.bestPosition}</div>
-                                                                                    )}
-                                                                                    {entry.originalDriver.secondBestOverallTime && (
-                                                                                        <div>2nd Best: {entry.originalDriver.secondBestOverallTime.time}</div>
-                                                                                    )}
-                                                                                    {entry.originalDriver.fileCount > 1 && (
-                                                                                        <div>Files: {entry.originalDriver.fileCount}</div>
+                                                                            draggable
+                                                                            onDragStart={(e) => handleGridDragStart(e, waveIndex, entryIndex)}
+                                                                            onDragOver={(e) => handleGridDragOver(e, waveIndex, entryIndex)}
+                                                                            onDrop={(e) => handleGridDrop(e, waveIndex, entryIndex)}
+                                                                        >
+                                                                            <td className="px-4 py-4 whitespace-nowrap">
+                                                                                <div className="flex items-center">
+                                                                                    <span className="text-sm font-medium text-gray-900">
+                                                                                        {entryIndex + 1}
+                                                                                    </span>
+                                                                                    {isTied && (
+                                                                                        <div 
+                                                                                            className="ml-2 w-2 h-2 rounded-full bg-caution-yellow"
+                                                                                            title="Tied position - drivers have same sorting value"
+                                                                                        />
                                                                                     )}
                                                                                 </div>
-                                                                            )}
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="px-4 py-4 whitespace-nowrap text-center">
-                                                                        <div className="flex items-center justify-center space-x-1">
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                onClick={() => moveClassUp(waveIndex, entry.Class)}
-                                                                                title="Move class up"
-                                                                                className="h-8 w-8 p-0"
-                                                                            >
-                                                                                <img src={minus1Icon} alt="Move up" className="h-4 w-4" />
-                                                                            </Button>
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                onClick={() => moveClassDown(waveIndex, entry.Class)}
-                                                                                title="Move class down"
-                                                                                className="h-8 w-8 p-0"
-                                                                            >
-                                                                                <img src={minus3Icon} alt="Move down" className="h-4 w-4" />
-                                                                            </Button>
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                onClick={() => mergeClassWithPrevious(waveIndex, entryIndex)}
-                                                                                title="Merge with previous class"
-                                                                                className="h-8 w-8 p-0"
-                                                                            >
-                                                                                <img src={mergeIcon} alt="Merge" className="h-4 w-4" />
-                                                                            </Button>
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                onClick={() => moveToStartOfWave(waveIndex, entryIndex)}
-                                                                                title="Move to start of wave"
-                                                                                className="h-8 w-8 p-0"
-                                                                            >
-                                                                                <ChevronUp className="h-4 w-4" />
-                                                                            </Button>
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                onClick={() => moveToEndOfClass(waveIndex, entryIndex)}
-                                                                                title="Move to end of class"
-                                                                                className="h-8 w-8 p-0"
-                                                                            >
-                                                                                <MoveVertical className="h-4 w-4" />
-                                                                            </Button>
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                onClick={() => moveToEndOfWave(waveIndex, entryIndex)}
-                                                                                title="Move to end of wave"
-                                                                                className="h-8 w-8 p-0"
-                                                                            >
-                                                                                <ChevronDown className="h-4 w-4" />
-                                                                            </Button>
-                                                                        </div>
-                                                                    </td>
-                                                                </tr>
-                                                            );
-                                                        })}
+                                                                            </td>
+                                                                            <td className="px-4 py-4 whitespace-nowrap">
+                                                                                <span className="text-sm font-medium text-gray-900">
+                                                                                    {entry.Number || '?'}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="px-4 py-4 whitespace-nowrap">
+                                                                                <span className="text-sm text-gray-900">
+                                                                                    {entry.Driver || 'TBD'}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="px-4 py-4 whitespace-nowrap">
+                                                                                <div className="flex items-center">
+                                                                                    <Badge 
+                                                                                        variant="secondary"
+                                                                                        className="bg-track-blue text-white"
+                                                                                        style={{
+                                                                                            backgroundColor: '#4B7BFF',
+                                                                                            color: 'white'
+                                                                                        }}
+                                                                                    >
+                                                                                        {entry.originalClass || entry.Class}
+                                                                                    </Badge>
+                                                                                </div>
+                                                                            </td>
+                                                                            <td className="px-4 py-4 whitespace-nowrap">
+                                                                                <span className="text-sm text-gray-900 font-mono">
+                                                                                    {entry.BestTime || '--:--'}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="px-4 py-4 whitespace-nowrap">
+                                                                                <div className="text-xs">
+                                                                                    {/* Primary sort criteria value */}
+                                                                                    <div className="font-medium text-gray-900 mb-1">
+                                                                                        {getSortCriteriaValue(entry, wave.config.sortBy)}
+                                                                                    </div>
+                                                                                    {/* Secondary stats */}
+                                                                                    <div className="text-gray-500 space-y-1">
+                                                                                        {getSecondaryStats(entry, wave.config.sortBy).map((stat, statIndex) => (
+                                                                                            <div key={statIndex}>{stat}</div>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                </div>
+                                                                            </td>
+                                                                            <td className="px-4 py-4 whitespace-nowrap text-center">
+                                                                                <div className="flex items-center justify-center space-x-1">
+                                                                                    <Button
+                                                                                        variant="ghost"
+                                                                                        size="sm"
+                                                                                        onClick={() => moveClassUp(waveIndex, entry.Class)}
+                                                                                        title="Move class up"
+                                                                                        className="h-8 w-8 p-0"
+                                                                                    >
+                                                                                        <ChevronUp className="h-4 w-4" />
+                                                                                    </Button>
+                                                                                    <Button
+                                                                                        variant="ghost"
+                                                                                        size="sm"
+                                                                                        onClick={() => moveClassDown(waveIndex, entry.Class)}
+                                                                                        title="Move class down"
+                                                                                        className="h-8 w-8 p-0"
+                                                                                    >
+                                                                                        <ChevronDown className="h-4 w-4" />
+                                                                                    </Button>
+                                                                                    <Button
+                                                                                        variant="ghost"
+                                                                                        size="sm"
+                                                                                        onClick={() => mergeClassWithPrevious(waveIndex, entryIndex)}
+                                                                                        title="Merge with previous class"
+                                                                                        className="h-8 w-8 p-0"
+                                                                                    >
+                                                                                        <Merge className="h-4 w-4" />
+                                                                                    </Button>
+                                                                                    <Button
+                                                                                        variant="ghost"
+                                                                                        size="sm"
+                                                                                        onClick={() => moveToStartOfWave(waveIndex, entryIndex)}
+                                                                                        title="Move to start of wave"
+                                                                                        className="h-8 w-8 p-0"
+                                                                                    >
+                                                                                        <ChevronUp className="h-4 w-4" />
+                                                                                    </Button>
+                                                                                    <Button
+                                                                                        variant="ghost"
+                                                                                        size="sm"
+                                                                                        onClick={() => moveToEndOfClass(waveIndex, entryIndex)}
+                                                                                        title="Move to end of class"
+                                                                                        className="h-8 w-8 p-0"
+                                                                                    >
+                                                                                        <ArrowDownFromLine className="h-4 w-4" />
+                                                                                    </Button>
+                                                                                    <Button
+                                                                                        variant="ghost"
+                                                                                        size="sm"
+                                                                                        onClick={() => moveToEndOfWave(waveIndex, entryIndex)}
+                                                                                        title="Move to end of wave"
+                                                                                        className="h-8 w-8 p-0"
+                                                                                    >
+                                                                                        <ArrowDownToLine className="h-4 w-4" />
+                                                                                    </Button>
+                                                                                </div>
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                });
+                                                            }
+                                                        })()}
                                                     </tbody>
                                                 </table>
                                             </div>
@@ -1883,7 +2351,7 @@ const GridBuilder = () => {
             
             {/* Version display in bottom-right corner */}
             <div className="fixed bottom-4 right-4 text-xs text-gray-400">
-                v0.6.6
+                v0.6.14
             </div>
         </div>
     );
