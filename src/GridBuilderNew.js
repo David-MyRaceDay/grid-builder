@@ -2356,7 +2356,7 @@ const GridBuilder = () => {
             
             {/* Version display in bottom-right corner */}
             <div className="fixed bottom-4 right-4 text-xs text-gray-400">
-                v0.6.20
+                v1.0.0
             </div>
         </div>
     );
